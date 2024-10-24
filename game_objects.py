@@ -22,16 +22,18 @@ class Player:
             self.x += self.speed
 
     def shoot(self, keys, bullet_speed, bullet_cooldown, current_time, last_bullet_time):
-        if current_time - last_bullet_time > bullet_cooldown:
+        if current_time - last_bullet_time >= bullet_cooldown:
             if keys[pygame.K_UP]:
-                self.bullets.append([self.x + self.size // 2, self.y, 0, -bullet_speed])
-            if keys[pygame.K_DOWN]:
-                self.bullets.append([self.x + self.size // 2, self.y + self.size, 0, bullet_speed])
-            if keys[pygame.K_LEFT]:
-                self.bullets.append([self.x, self.y + self.size // 2, -bullet_speed, 0])
-            if keys[pygame.K_RIGHT]:
-                self.bullets.append([self.x + self.size, self.y + self.size // 2, bullet_speed, 0])
-            return current_time
+                self.bullets.append([self.x + self.size // 2, self.y, 0, -bullet_speed, self.x, self.y])  # Up
+            elif keys[pygame.K_DOWN]:
+                self.bullets.append(
+                    [self.x + self.size // 2, self.y + self.size, 0, bullet_speed, self.x, self.y])  # Down
+            elif keys[pygame.K_LEFT]:
+                self.bullets.append([self.x, self.y + self.size // 2, -bullet_speed, 0, self.x, self.y])  # Left
+            elif keys[pygame.K_RIGHT]:
+                self.bullets.append(
+                    [self.x + self.size, self.y + self.size // 2, bullet_speed, 0, self.x, self.y])  # Right
+            last_bullet_time = current_time
         return last_bullet_time
 
     def draw(self, screen):
