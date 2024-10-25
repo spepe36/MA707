@@ -1,7 +1,7 @@
 import pygame
 import sys
 import random
-from game_objects import Player, Enemy  # Import the Player and Enemy classes
+from game_objects import Player, Enemy
 
 # Initialize Pygame
 pygame.init()
@@ -40,30 +40,31 @@ upgrade_options = [
 ]
 
 # Game variables
-player = Player(WIDTH // 2, HEIGHT // 2, 30, RED, 4, 3)
+player = Player(WIDTH // 2, HEIGHT // 2, 30, RED, 4, 1)
 enemies = []
 enemy_size = 40
 enemy_speed = 2
 
+# Round Variables
 round_number = 1
 enemies_defeated = 0
 enemies_to_defeat = round_number * 10
 
+# Bullet variables
 bullet_speed = 7
 bullet_cooldown = 300
 last_bullet_time = 0
 bullet_range = 250
 
 # Enemy spawn variables
-spawn_interval = 1000  # Enemy spawn interval in milliseconds (adjust as needed)
-last_spawn_time = 0  # Track the last spawn time
+spawn_interval = 1000
+last_spawn_time = 0
 
 # Score tracking
-score = 0  # Initialize the score to 0
-
+score = 0
 
 def spawn_enemy():
-    edge = random.choice(['top', 'bottom', 'left', 'right'])  # Randomly select which edge to spawn on
+    edge = random.choice(['top', 'bottom', 'left', 'right'])
     if edge == 'top':
         x = random.randint(0, WIDTH - enemy_size)
         y = 0  # Spawn at the top edge
@@ -79,15 +80,11 @@ def spawn_enemy():
 
     return Enemy(x, y, enemy_size, GREEN, enemy_speed)
 
-
-# Function to check for collisions between two rectangles
 def check_collision(rect1, rect2):
     return pygame.Rect(rect1).colliderect(pygame.Rect(rect2))
 
-
 def draw_ui():
     """Function to draw the UI elements with improved aesthetics."""
-    # Draw UI background
     pygame.draw.rect(screen, UI_COLOR, (10, 10, 100, 80))
 
     # Health, score, and round text
@@ -95,7 +92,6 @@ def draw_ui():
     score_text = font.render(f"Score: {score}", True, WHITE)
     round_text = font.render(f"Round: {round_number}", True, WHITE)
 
-    # Draw text on the screen
     screen.blit(health_text, (20, 20))
     screen.blit(score_text, (20, 40))
     screen.blit(round_text, (20, 60))
@@ -108,7 +104,6 @@ def draw_upgrade_menu():
     menu_x = (WIDTH - menu_width) // 2
     menu_y = (HEIGHT - menu_height) // 2
 
-    # Draw menu background
     pygame.draw.rect(screen, UI_COLOR, (menu_x, menu_y, menu_width, menu_height))
 
     title_text = font.render("Choose Upgrade", True, WHITE)
@@ -143,11 +138,18 @@ def apply_upgrade(option):
     elif option["value"] == 10:
         player.size += 5  # Increase player size (health)
 
-    # Reset round variables for the next round
-    global round_number, enemies_defeated, enemies_to_defeat
+    global round_number, enemies_defeated, enemies_to_defeat, spawn_interval
     round_number += 1
     enemies_defeated = 0
     enemies_to_defeat = round_number * 10
+    spawn_interval -= 200
+
+    # Reset player position to the center of the screen
+    player.x, player.y = WIDTH // 2, HEIGHT // 2
+
+    # Clear all existing enemies
+    enemies.clear()
+    player.bullets.clear()
 
 
 def handle_input():
