@@ -3,7 +3,7 @@ import math
 import random
 
 class Player:
-    def __init__(self, x, y, size, color, speed, health, width, height):
+    def __init__(self, x, y, size, color, speed, health, width, height, bullet_size):
         self.x = x
         self.y = y
         self.size = size
@@ -13,6 +13,7 @@ class Player:
         self.bullets = []
         self.width = width
         self.height = height
+        self.bullet_size = bullet_size
 
     def move(self, keys, width, height):
         if keys[pygame.K_w] and self.y - self.speed > 0:
@@ -59,19 +60,28 @@ class Player:
         player.x = max(0, min(player.width - player.size, player.x))
         player.y = max(0, min(player.height - player.size, player.y))
     '''
+
     def shoot(self, keys, bullet_speed, bullet_cooldown, current_time, last_bullet_time):
         if current_time - last_bullet_time >= bullet_cooldown:
+            bullet_width = self.bullet_size  # Use the bullet size property from the player
+
             if keys[pygame.K_UP]:
-                self.bullets.append([self.x + self.size // 3, self.y, 0, -bullet_speed, self.x, self.y])  # Up
+                self.bullets.append(
+                    [self.x + self.size // 3, self.y, 0, -bullet_speed, self.x, self.y, bullet_width])  # Up
             elif keys[pygame.K_DOWN]:
                 self.bullets.append(
-                    [self.x + self.size // 3, self.y + self.size, 0, bullet_speed, self.x, self.y])  # Down
+                    [self.x + self.size // 3, self.y + self.size, 0, bullet_speed, self.x, self.y,
+                     bullet_width])  # Down
             elif keys[pygame.K_LEFT]:
-                self.bullets.append([self.x, self.y + self.size // 3, -bullet_speed, 0, self.x, self.y])  # Left
+                self.bullets.append(
+                    [self.x, self.y + self.size // 3, -bullet_speed, 0, self.x, self.y, bullet_width])  # Left
             elif keys[pygame.K_RIGHT]:
                 self.bullets.append(
-                    [self.x + self.size, self.y + self.size // 3, bullet_speed, 0, self.x, self.y])  # Right
+                    [self.x + self.size, self.y + self.size // 3, bullet_speed, 0, self.x, self.y,
+                     bullet_width])  # Right
+
             last_bullet_time = current_time
+
         return last_bullet_time
 
     def draw(self, screen):
@@ -86,7 +96,7 @@ class Enemy:
         self.speed = speed
         self.velocity = pygame.Vector2(random.uniform(-1, 1), random.uniform(-1, 1))
 
-    def move_towards_player(self, player_x, player_y, enemies, separation_distance=60, cohesion_factor=0.01,
+    def move_towards_player(self, player_x, player_y, enemies, separation_distance=100, cohesion_factor=0.005,
                             alignment_factor=0.05, target_factor=0.1):
         # Separation
         separation = pygame.Vector2(0, 0)
@@ -95,11 +105,12 @@ class Enemy:
             if other != self:  # Avoid self
                 dist = pygame.Vector2(self.x - other.x, self.y - other.y).length()
                 if dist < separation_distance:
-                    # Move away from nearby enemies
-                    separation += pygame.Vector2(self.x - other.x, self.y - other.y).normalize() / dist
+                    # Increase the repulsion factor to strengthen the separation force
+                    repulsion_force = 1 / dist  # Increase repulsion force as they get closer
+                    separation += (pygame.Vector2(self.x - other.x, self.y - other.y).normalize() * repulsion_force)
                     count += 1
         if count > 0:
-            separation /= count
+            separation /= count  # Average separation force
 
         # Alignment
         alignment = pygame.Vector2(0, 0)
@@ -113,8 +124,15 @@ class Enemy:
         if count > 0:
             alignment = (alignment / count).normalize() * alignment_factor
 
-        # Cohesion
-        cohesion = pygame.Vector2(player_x - self.x, player_y - self.y).normalize() * cohesion_factor
+        # Cohesion (decay if too close)
+        cohesion_vector = pygame.Vector2(player_x - self.x, player_y - self.y).normalize()
+        distance_to_player = cohesion_vector.length()
+
+        # Adjust cohesion based on distance to the player
+        if distance_to_player < separation_distance:
+            cohesion_factor *= (distance_to_player / separation_distance)
+
+        cohesion = cohesion_vector * cohesion_factor
 
         # Direct targeting vector towards the player
         target_direction = pygame.Vector2(player_x - self.x, player_y - self.y).normalize() * target_factor

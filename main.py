@@ -67,15 +67,18 @@ def enemy_selected():
 
 
 def spawn_enemy():
+    if len(enemies) >= max_enemies:
+        return None
+
     edge = random.choice(['top', 'bottom', 'left', 'right'])
 
     enemy_color = enemy_selected()
 
     enemy_information = {
-        'yellow': [30, 1.5, (0, 255, 0)],
-        'green': [15, 2.3, (0, 0, 255)],
-        'red': [60, 1, (255, 0, 0)],
-        'purple': [40, 2.5, (255, 0, 255)],
+        'yellow': [30, 2.6, (0, 255, 0)],
+        'green': [15, 3.0, (0, 0, 255)],
+        'red': [60, 2, (255, 0, 0)],
+        'purple': [40, 3.3, (255, 0, 255)],
     }
 
     enemy_size = enemy_information[enemy_color][0]
@@ -112,7 +115,8 @@ def draw_ui():
     screen.blit(round_text, (20, 60))
 
 
-def draw_upgrade_menu():
+
+def draw_upgrade_menu(selected_upgrades):
     """Function to draw the upgrade menu."""
     menu_width = 300
     menu_height = 250
@@ -124,8 +128,8 @@ def draw_upgrade_menu():
     title_text = font.render("Choose Upgrade", True, WHITE)
     screen.blit(title_text, (menu_x + 20, menu_y + 20))
 
-    # Draw buttons
-    for i, option in enumerate(upgrade_options):
+    # Draw buttons for selected upgrades
+    for i, option in enumerate(selected_upgrades):
         button_rect = pygame.Rect(menu_x + 20, menu_y + 60 + i * 40, 260, 30)
         mouse_pos = pygame.mouse.get_pos()
 
@@ -136,28 +140,46 @@ def draw_upgrade_menu():
             pygame.draw.rect(screen, BUTTON_COLOR, button_rect)
 
         # Render button text
-        button_text = font.render(option["name"], True, BLACK)
+        upgrade_name = list(option.keys())[0]  # Get the upgrade name
+        button_text = font.render(upgrade_name, True, BLACK)
         screen.blit(button_text, (button_rect.x + 5, button_rect.y + 5))
 
         # Check for button click
         if pygame.mouse.get_pressed()[0] and button_rect.collidepoint(mouse_pos):
             apply_upgrade(option)
 
+def select_random_upgrades():
+    """Function to select three random upgrades from the upgrade options."""
+    selected_upgrades = random.sample(upgrade_options, 3)
+    return selected_upgrades
+
 
 def apply_upgrade(option):
     """Apply the selected upgrade to the player."""
-    if option["value"] == 1:
-        player.speed += 1  # Increase player speed
-    elif option["value"] == 2:
-        bullet_speed += 2  # Increase bullet speed
-    elif option["value"] == 10:
-        player.size += 5  # Increase player size (health)
+    global round_number, enemies_defeated, enemies_to_defeat, spawn_interval, bullet_speed, bullet_range, bullet_cooldown, upgrade_menu_open
 
-    global round_number, enemies_defeated, enemies_to_defeat, spawn_interval
+    # Extract the upgrade name and value from the option
+    upgrade_name = list(option.keys())[0]  # Get the upgrade name
+    upgrade_value = option[upgrade_name]   # Get the corresponding value
+
+    if upgrade_name == "Character Speed":
+        player.speed += upgrade_value  # Increase player speed
+    elif upgrade_name == "Bullet Speed":
+        bullet_speed += upgrade_value  # Increase bullet speed
+    elif upgrade_name == "Character Size":
+        player.size += upgrade_value  # Increase player size (health)
+    elif upgrade_name == "Bullet Size":
+        player.bullet_size += upgrade_value  # Increase bullet size
+    elif upgrade_name == "Bullet Range":
+        bullet_range += upgrade_value  # Increase bullet range
+    elif upgrade_name == "Attack Speed":
+        bullet_cooldown += upgrade_value
+
+    # After applying the upgrade, update the round state
     round_number += 1
     enemies_defeated = 0
     enemies_to_defeat = round_number * 10
-    spawn_interval -= 200
+    spawn_interval -= 100
 
     # Reset player position to the center of the screen
     player.x, player.y = WIDTH // 2, HEIGHT // 2
@@ -166,6 +188,8 @@ def apply_upgrade(option):
     enemies.clear()
     player.bullets.clear()
 
+    # Close the upgrade menu
+    upgrade_menu_open = False
 
 def update_game_objects():
     """Function to update all game objects."""
@@ -195,8 +219,10 @@ def update_game_objects():
     # Spawn enemies based on the spawn interval
     global last_spawn_time
     if current_time - last_spawn_time > spawn_interval:
-        enemies.append(spawn_enemy())
-        last_spawn_time = current_time  # Reset spawn timer
+        new_enemy = spawn_enemy()
+        if new_enemy is not None:
+            enemies.append(new_enemy)
+        last_spawn_time = current_time
 
     # Move enemies towards player
     for enemy in enemies:
@@ -232,32 +258,39 @@ clock = pygame.time.Clock()
 
 # Upgrade options
 upgrade_options = [
-    {"name": "Increase Player Speed", "value": 1},
-    {"name": "Increase Bullet Speed", "value": 2},
-    {"name": "Increase Player Size (More Health)", "value": 10},
+    {"Character Speed": 0.3},
+    {"Bullet Speed": -2},
+    {"Character Size": -10},
+    {"Bullet Size": 2},
+    {"Bullet Range": 10},
+    {"Attack Speed": -20}
 ]
 
 # Game variables
-player = Player(WIDTH // 2, HEIGHT // 2, 30, RED, 4, 1, WIDTH, HEIGHT)
+player = Player(WIDTH // 2, HEIGHT // 2, 30, RED, 4, 1, WIDTH, HEIGHT, 5)
 enemies = []
 
 # Round Variables
 round_number = 1
 enemies_defeated = 0
 enemies_to_defeat = round_number * 10
+max_enemies = 35
 
 # Bullet variables
 bullet_speed = 7
 bullet_cooldown = 300
 last_bullet_time = 0
 bullet_range = 250
+bullet_size = 2
 
 # Enemy spawn variables
-spawn_interval = 300
+spawn_interval = 600
 last_spawn_time = 0
 
 # Score tracking
 score = 0
+
+upgrade_menu_open = False
 
 # Game loop
 running = True
@@ -265,9 +298,12 @@ while running:
     screen.fill(BACKGROUND_COLOR)
     handle_input()
 
-    if enemies_defeated >= enemies_to_defeat:
-        draw_upgrade_menu()
+    if enemies_defeated >= enemies_to_defeat and not upgrade_menu_open:
+        selected_upgrades = select_random_upgrades()
+        upgrade_menu_open = True  # Open the upgrade menu
 
+    if upgrade_menu_open:
+        draw_upgrade_menu(selected_upgrades)
     else:
         update_game_objects()
         running = check_collisions()
