@@ -84,11 +84,48 @@ class Enemy:
         self.size = size
         self.color = color
         self.speed = speed
+        self.velocity = pygame.Vector2(random.uniform(-1, 1), random.uniform(-1, 1))
 
-    def move_towards_player(self, player_x, player_y):
-        angle = math.atan2(player_y - self.y, player_x - self.x)
-        self.x += self.speed * math.cos(angle)
-        self.y += self.speed * math.sin(angle)
+    def move_towards_player(self, player_x, player_y, enemies, separation_distance=60, cohesion_factor=0.01,
+                            alignment_factor=0.05, target_factor=0.1):
+        # Separation
+        separation = pygame.Vector2(0, 0)
+        count = 0
+        for other in enemies:
+            if other != self:  # Avoid self
+                dist = pygame.Vector2(self.x - other.x, self.y - other.y).length()
+                if dist < separation_distance:
+                    # Move away from nearby enemies
+                    separation += pygame.Vector2(self.x - other.x, self.y - other.y).normalize() / dist
+                    count += 1
+        if count > 0:
+            separation /= count
+
+        # Alignment
+        alignment = pygame.Vector2(0, 0)
+        count = 0
+        for other in enemies:
+            if other != self:  # Avoid self
+                dist = pygame.Vector2(self.x - other.x, self.y - other.y).length()
+                if dist < separation_distance:
+                    alignment += other.velocity
+                    count += 1
+        if count > 0:
+            alignment = (alignment / count).normalize() * alignment_factor
+
+        # Cohesion
+        cohesion = pygame.Vector2(player_x - self.x, player_y - self.y).normalize() * cohesion_factor
+
+        # Direct targeting vector towards the player
+        target_direction = pygame.Vector2(player_x - self.x, player_y - self.y).normalize() * target_factor
+
+        # Calculate the final velocity vector and update position
+        self.velocity += separation + alignment + cohesion + target_direction
+        if self.velocity.length() > self.speed:
+            self.velocity = self.velocity.normalize() * self.speed
+
+        self.x += self.velocity.x
+        self.y += self.velocity.y
 
     def draw(self, screen):
         pygame.draw.rect(screen, self.color, (self.x, self.y, self.size, self.size))

@@ -3,12 +3,55 @@ import sys
 import random
 from game_objects import Player, Enemy
 
+def handle_input():
+    """Function to handle user input."""
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                pygame.quit()
+                sys.exit()
+
+
+def check_collision(rect1, rect2):
+    return pygame.Rect(rect1).colliderect(pygame.Rect(rect2))
+
+
+def check_collisions():
+    """Function to check for collisions between bullets and enemies, and between the player and enemies."""
+    global enemies_defeated, score
+    # Check bullet-enemy collisions
+    for bullet in player.bullets[:]:
+        bullet_rect = (bullet[0], bullet[1], 10, 10)
+        for enemy in enemies[:]:
+            enemy_rect = (enemy.x, enemy.y, enemy.size, enemy.size)
+            if check_collision(bullet_rect, enemy_rect):
+                player.bullets.remove(bullet)  # Remove bullet
+                enemies.remove(enemy)  # Remove enemy
+                enemies_defeated += 1
+                score += 1  # Increase score by 1 for every kill
+
+    # Check player-enemy collisions
+    player_rect = (player.x, player.y, player.size, player.size)
+    for enemy in enemies[:]:
+        enemy_rect = (enemy.x, enemy.y, enemy.size, enemy.size)
+        if check_collision(player_rect, enemy_rect):
+            player.health -= 1  # Decrease player health
+            enemies.remove(enemy)  # Remove enemy that hit the player
+            if player.health <= 0:
+                return False  # End game if player health is 0
+    return True
+
+
 def enemy_selected():
     spawn_rates = {1: {'yellow': 1},
                    2: {'yellow': 7, 'green': 3},
                    3: {'yellow': 5, 'green': 3, 'red': 2},
                    4: {'yellow': 2, 'green': 5, 'red': 3},
                    5: {'yellow': 1, 'green': 2, 'red': 3, 'purple': 4}}
+
     if round_number > 5:
         current_rates = spawn_rates[5]
     else:
@@ -53,36 +96,6 @@ def spawn_enemy():
         y = random.randint(0, HEIGHT - enemy_size)
 
     return Enemy(x, y, enemy_size, enemy_color, enemy_speed)
-
-
-def check_collision(rect1, rect2):
-    return pygame.Rect(rect1).colliderect(pygame.Rect(rect2))
-
-
-def check_collisions():
-    """Function to check for collisions between bullets and enemies, and between the player and enemies."""
-    global enemies_defeated, score
-    # Check bullet-enemy collisions
-    for bullet in player.bullets[:]:
-        bullet_rect = (bullet[0], bullet[1], 10, 10)
-        for enemy in enemies[:]:
-            enemy_rect = (enemy.x, enemy.y, enemy.size, enemy.size)
-            if check_collision(bullet_rect, enemy_rect):
-                player.bullets.remove(bullet)  # Remove bullet
-                enemies.remove(enemy)  # Remove enemy
-                enemies_defeated += 1
-                score += 1  # Increase score by 1 for every kill
-
-    # Check player-enemy collisions
-    player_rect = (player.x, player.y, player.size, player.size)
-    for enemy in enemies[:]:
-        enemy_rect = (enemy.x, enemy.y, enemy.size, enemy.size)
-        if check_collision(player_rect, enemy_rect):
-            player.health -= 1  # Decrease player health
-            enemies.remove(enemy)  # Remove enemy that hit the player
-            if player.health <= 0:
-                return False  # End game if player health is 0
-    return True
 
 
 def draw_ui():
@@ -154,18 +167,6 @@ def apply_upgrade(option):
     player.bullets.clear()
 
 
-def handle_input():
-    """Function to handle user input."""
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_ESCAPE:
-                pygame.quit()
-                sys.exit()
-
-
 def update_game_objects():
     """Function to update all game objects."""
     # Player movement
@@ -199,7 +200,7 @@ def update_game_objects():
 
     # Move enemies towards player
     for enemy in enemies:
-        enemy.move_towards_player(player.x, player.y)
+        enemy.move_towards_player(player.x, player.y, enemies)
 
 
 # Initialize Pygame
@@ -218,10 +219,10 @@ pygame.display.set_caption("Square Shooter")
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
-BACKGROUND_COLOR = (230, 230, 230)  # Light gray background
-UI_COLOR = (50, 50, 50)  # Darker color for UI background
-BUTTON_COLOR = (100, 100, 100)  # Button color
-BUTTON_HOVER_COLOR = (150, 150, 150)  # Button hover color
+BACKGROUND_COLOR = (230, 230, 230)
+UI_COLOR = (50, 50, 50)
+BUTTON_COLOR = (100, 100, 100)
+BUTTON_HOVER_COLOR = (150, 150, 150)
 
 # Fonts
 font = pygame.font.Font(pygame.font.get_default_font(), 18)
@@ -252,7 +253,7 @@ last_bullet_time = 0
 bullet_range = 250
 
 # Enemy spawn variables
-spawn_interval = 700
+spawn_interval = 300
 last_spawn_time = 0
 
 # Score tracking
