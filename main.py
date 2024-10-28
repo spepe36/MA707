@@ -3,68 +3,42 @@ import sys
 import random
 from game_objects import Player, Enemy
 
-# Initialize Pygame
-pygame.init()
+def enemy_selected():
+    spawn_rates = {1: {'yellow': 1},
+                   2: {'yellow': 7, 'green': 3},
+                   3: {'yellow': 5, 'green': 3, 'red': 2},
+                   4: {'yellow': 2, 'green': 5, 'red': 3},
+                   5: {'yellow': 1, 'green': 2, 'red': 3, 'purple': 4}}
+    if round_number > 5:
+        current_rates = spawn_rates[5]
+    else:
+        current_rates = spawn_rates[round_number]
 
-# Get the display resolution
-info = pygame.display.Info()
-WIDTH, HEIGHT = info.current_w, info.current_h
+    color_array = []
 
-# Enable windowed fullscreen (borderless)
-screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.NOFRAME)
+    # Populate color_array according to spawn rates
+    for color, spawn_rate in current_rates.items():
+        color_array.extend([color] * spawn_rate)
 
-pygame.display.set_caption("Square Shooter")
+    return random.choice(color_array)
 
-# Colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GREEN = (0, 255, 0)
-BLUE = (0, 0, 255)
-RED = (255, 0, 0)
-BACKGROUND_COLOR = (230, 230, 230)  # Light gray background
-UI_COLOR = (50, 50, 50)  # Darker color for UI background
-BUTTON_COLOR = (100, 100, 100)  # Button color
-BUTTON_HOVER_COLOR = (150, 150, 150)  # Button hover color
-
-# Fonts
-font = pygame.font.Font(pygame.font.get_default_font(), 18)
-
-# FPS
-clock = pygame.time.Clock()
-
-# Upgrade options
-upgrade_options = [
-    {"name": "Increase Player Speed", "value": 1},
-    {"name": "Increase Bullet Speed", "value": 2},
-    {"name": "Increase Player Size (More Health)", "value": 10},
-]
-
-# Game variables
-player = Player(WIDTH // 2, HEIGHT // 2, 30, RED, 4, 1)
-enemies = []
-enemy_size = 40
-enemy_speed = 2
-
-# Round Variables
-round_number = 1
-enemies_defeated = 0
-enemies_to_defeat = round_number * 10
-
-# Bullet variables
-bullet_speed = 7
-bullet_cooldown = 300
-last_bullet_time = 0
-bullet_range = 250
-
-# Enemy spawn variables
-spawn_interval = 1000
-last_spawn_time = 0
-
-# Score tracking
-score = 0
 
 def spawn_enemy():
     edge = random.choice(['top', 'bottom', 'left', 'right'])
+
+    enemy_color = enemy_selected()
+
+    enemy_information = {
+        'yellow': [30, 1.5, (0, 255, 0)],
+        'green': [15, 2.3, (0, 0, 255)],
+        'red': [60, 1, (255, 0, 0)],
+        'purple': [40, 2.5, (255, 0, 255)],
+    }
+
+    enemy_size = enemy_information[enemy_color][0]
+    enemy_speed = enemy_information[enemy_color][1]
+    enemy_color = enemy_information[enemy_color][2]
+
     if edge == 'top':
         x = random.randint(0, WIDTH - enemy_size)
         y = 0  # Spawn at the top edge
@@ -78,10 +52,38 @@ def spawn_enemy():
         x = WIDTH - enemy_size  # Spawn at the right edge
         y = random.randint(0, HEIGHT - enemy_size)
 
-    return Enemy(x, y, enemy_size, GREEN, enemy_speed)
+    return Enemy(x, y, enemy_size, enemy_color, enemy_speed)
+
 
 def check_collision(rect1, rect2):
     return pygame.Rect(rect1).colliderect(pygame.Rect(rect2))
+
+
+def check_collisions():
+    """Function to check for collisions between bullets and enemies, and between the player and enemies."""
+    global enemies_defeated, score
+    # Check bullet-enemy collisions
+    for bullet in player.bullets[:]:
+        bullet_rect = (bullet[0], bullet[1], 10, 10)
+        for enemy in enemies[:]:
+            enemy_rect = (enemy.x, enemy.y, enemy.size, enemy.size)
+            if check_collision(bullet_rect, enemy_rect):
+                player.bullets.remove(bullet)  # Remove bullet
+                enemies.remove(enemy)  # Remove enemy
+                enemies_defeated += 1
+                score += 1  # Increase score by 1 for every kill
+
+    # Check player-enemy collisions
+    player_rect = (player.x, player.y, player.size, player.size)
+    for enemy in enemies[:]:
+        enemy_rect = (enemy.x, enemy.y, enemy.size, enemy.size)
+        if check_collision(player_rect, enemy_rect):
+            player.health -= 1  # Decrease player health
+            enemies.remove(enemy)  # Remove enemy that hit the player
+            if player.health <= 0:
+                return False  # End game if player health is 0
+    return True
+
 
 def draw_ui():
     """Function to draw the UI elements with improved aesthetics."""
@@ -173,6 +175,9 @@ def update_game_objects():
     # Bullet shooting with cooldown
     current_time = pygame.time.get_ticks()
     global last_bullet_time
+
+    # Player.avoid_enemies(player, enemies)
+
     last_bullet_time = player.shoot(keys, bullet_speed, bullet_cooldown, current_time, last_bullet_time)
 
     # Move bullets
@@ -197,31 +202,61 @@ def update_game_objects():
         enemy.move_towards_player(player.x, player.y)
 
 
-def check_collisions():
-    """Function to check for collisions between bullets and enemies, and between the player and enemies."""
-    global enemies_defeated, score
-    # Check bullet-enemy collisions
-    for bullet in player.bullets[:]:
-        bullet_rect = (bullet[0], bullet[1], 10, 10)
-        for enemy in enemies[:]:
-            enemy_rect = (enemy.x, enemy.y, enemy.size, enemy.size)
-            if check_collision(bullet_rect, enemy_rect):
-                player.bullets.remove(bullet)  # Remove bullet
-                enemies.remove(enemy)  # Remove enemy
-                enemies_defeated += 1
-                score += 1  # Increase score by 1 for every kill
+# Initialize Pygame
+pygame.init()
 
-    # Check player-enemy collisions
-    player_rect = (player.x, player.y, player.size, player.size)
-    for enemy in enemies[:]:
-        enemy_rect = (enemy.x, enemy.y, enemy.size, enemy.size)
-        if check_collision(player_rect, enemy_rect):
-            player.health -= 1  # Decrease player health
-            enemies.remove(enemy)  # Remove enemy that hit the player
-            if player.health <= 0:
-                return False  # End game if player health is 0
-    return True
+# Get the display resolution
+info = pygame.display.Info()
+WIDTH, HEIGHT = info.current_w, info.current_h
 
+# Enable windowed fullscreen (borderless)
+screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.NOFRAME)
+
+pygame.display.set_caption("Square Shooter")
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+BACKGROUND_COLOR = (230, 230, 230)  # Light gray background
+UI_COLOR = (50, 50, 50)  # Darker color for UI background
+BUTTON_COLOR = (100, 100, 100)  # Button color
+BUTTON_HOVER_COLOR = (150, 150, 150)  # Button hover color
+
+# Fonts
+font = pygame.font.Font(pygame.font.get_default_font(), 18)
+
+# FPS
+clock = pygame.time.Clock()
+
+# Upgrade options
+upgrade_options = [
+    {"name": "Increase Player Speed", "value": 1},
+    {"name": "Increase Bullet Speed", "value": 2},
+    {"name": "Increase Player Size (More Health)", "value": 10},
+]
+
+# Game variables
+player = Player(WIDTH // 2, HEIGHT // 2, 30, RED, 4, 1, WIDTH, HEIGHT)
+enemies = []
+
+# Round Variables
+round_number = 1
+enemies_defeated = 0
+enemies_to_defeat = round_number * 10
+
+# Bullet variables
+bullet_speed = 7
+bullet_cooldown = 300
+last_bullet_time = 0
+bullet_range = 250
+
+# Enemy spawn variables
+spawn_interval = 700
+last_spawn_time = 0
+
+# Score tracking
+score = 0
 
 # Game loop
 running = True
@@ -229,21 +264,21 @@ while running:
     screen.fill(BACKGROUND_COLOR)
     handle_input()
 
-    # Check if all enemies are defeated to show upgrade menu
     if enemies_defeated >= enemies_to_defeat:
         draw_upgrade_menu()
+
     else:
         update_game_objects()
         running = check_collisions()
-
-        # Draw game objects
         player.draw(screen)
+
         for bullet in player.bullets:
             pygame.draw.rect(screen, BLACK, (bullet[0], bullet[1], 10, 10))
+
         for enemy in enemies:
             enemy.draw(screen)
 
-    draw_ui()  # Draw UI at the end of each frame
+    draw_ui()
 
     pygame.display.flip()
     clock.tick(60)
