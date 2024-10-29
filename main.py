@@ -88,6 +88,8 @@ def spawn_enemy():
     enemy_speed = enemy_information[enemy_color][1]
     enemy_color = enemy_information[enemy_color][2]
 
+    x, y = 0, 0
+
     if edge == 'top':
         x = random.randint(0, WIDTH - enemy_size)
         y = 0  # Spawn at the top edge
@@ -291,6 +293,7 @@ last_spawn_time = 0
 score = 0
 
 upgrade_menu_open = False
+selected_upgrades = []
 
 # Game loop
 running = True
