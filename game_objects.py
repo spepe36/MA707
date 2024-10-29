@@ -1,5 +1,4 @@
 import pygame
-import math
 import random
 
 class Player:
@@ -27,7 +26,7 @@ class Player:
     '''
     def avoid_enemies(player, enemies):
         """AI function to move the player smoothly away from nearby enemies while seeking open spaces."""
-        safe_distance = 250  # Minimum distance to maintain from enemies
+        safe_distance = 150  # Minimum distance to maintain from enemies
         move_x, move_y = 0, 0
 
         for enemy in enemies:

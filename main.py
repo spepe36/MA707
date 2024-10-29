@@ -23,29 +23,30 @@ def check_collisions():
     """Function to check for collisions between bullets and enemies, and between the player and enemies."""
     global enemies_defeated, score
     # Check bullet-enemy collisions
-    for bullet in player.bullets[:]:
-        bullet_rect = (bullet[0], bullet[1], 10, 10)
-        for enemy in enemies[:]:
-            enemy_rect = (enemy.x, enemy.y, enemy.size, enemy.size)
+    for single_bullet in player.bullets[:]:
+        bullet_rect = (single_bullet[0], single_bullet[1], 10, 10)
+        for single_enemy in enemies[:]:
+            enemy_rect = (single_enemy.x, single_enemy.y, single_enemy.size, single_enemy.size)
             if check_collision(bullet_rect, enemy_rect):
-                player.bullets.remove(bullet)  # Remove bullet
-                enemies.remove(enemy)  # Remove enemy
+                player.bullets.remove(single_bullet)  # Remove bullet
+                enemies.remove(single_enemy)  # Remove enemy
                 enemies_defeated += 1
                 score += 1  # Increase score by 1 for every kill
 
     # Check player-enemy collisions
     player_rect = (player.x, player.y, player.size, player.size)
-    for enemy in enemies[:]:
-        enemy_rect = (enemy.x, enemy.y, enemy.size, enemy.size)
+    for single_enemy in enemies[:]:
+        enemy_rect = (single_enemy.x, single_enemy.y, single_enemy.size, single_enemy.size)
         if check_collision(player_rect, enemy_rect):
             player.health -= 1  # Decrease player health
-            enemies.remove(enemy)  # Remove enemy that hit the player
+            enemies.remove(single_enemy)  # Remove enemy that hit the player
             if player.health <= 0:
                 return False  # End game if player health is 0
     return True
 
 
 def enemy_selected():
+    """Function to choose the type of enemy to spawn based on the round's spawn rates."""
     spawn_rates = {1: {'yellow': 1},
                    2: {'yellow': 7, 'green': 3},
                    3: {'yellow': 5, 'green': 3, 'red': 2},
@@ -67,6 +68,8 @@ def enemy_selected():
 
 
 def spawn_enemy():
+    """Function to spawn enemies at a given location."""
+
     if len(enemies) >= max_enemies:
         return None
 
@@ -103,20 +106,17 @@ def spawn_enemy():
 
 def draw_ui():
     """Function to draw the UI elements with improved aesthetics."""
-    pygame.draw.rect(screen, UI_COLOR, (10, 10, 100, 80))
+    pygame.draw.rect(screen, UI_COLOR, (10, 10, 100, 60))
 
-    # Health, score, and round text
-    health_text = font.render(f"Health: {player.health}", True, WHITE)
+    # Score, and round text
     score_text = font.render(f"Score: {score}", True, WHITE)
     round_text = font.render(f"Round: {round_number}", True, WHITE)
 
-    screen.blit(health_text, (20, 20))
-    screen.blit(score_text, (20, 40))
-    screen.blit(round_text, (20, 60))
+    screen.blit(score_text, (20, 20))
+    screen.blit(round_text, (20, 40))
 
 
-
-def draw_upgrade_menu(selected_upgrades):
+def draw_upgrade_menu(upgrades):
     """Function to draw the upgrade menu."""
     menu_width = 300
     menu_height = 250
@@ -129,7 +129,7 @@ def draw_upgrade_menu(selected_upgrades):
     screen.blit(title_text, (menu_x + 20, menu_y + 20))
 
     # Draw buttons for selected upgrades
-    for i, option in enumerate(selected_upgrades):
+    for i, option in enumerate(upgrades):
         button_rect = pygame.Rect(menu_x + 20, menu_y + 60 + i * 40, 260, 30)
         mouse_pos = pygame.mouse.get_pos()
 
@@ -150,8 +150,8 @@ def draw_upgrade_menu(selected_upgrades):
 
 def select_random_upgrades():
     """Function to select three random upgrades from the upgrade options."""
-    selected_upgrades = random.sample(upgrade_options, 3)
-    return selected_upgrades
+    three_upgrades = random.sample(upgrade_options, 3)
+    return three_upgrades
 
 
 def apply_upgrade(option):
@@ -206,15 +206,15 @@ def update_game_objects():
     last_bullet_time = player.shoot(keys, bullet_speed, bullet_cooldown, current_time, last_bullet_time)
 
     # Move bullets
-    for bullet in player.bullets[:]:
-        bullet[0] += bullet[2]  # Move horizontally
-        bullet[1] += bullet[3]  # Move vertically
-        distance_traveled = ((bullet[0] - bullet[4]) ** 2 + (bullet[1] - bullet[5]) ** 2) ** 0.5
+    for single_bullet in player.bullets[:]:
+        single_bullet[0] += single_bullet[2]  # Move horizontally
+        single_bullet[1] += single_bullet[3]  # Move vertically
+        distance_traveled = ((single_bullet[0] - single_bullet[4]) ** 2 + (single_bullet[1] - single_bullet[5]) ** 2) ** 0.5
 
         # Remove bullet if it travels beyond its range or goes off-screen
-        if distance_traveled > bullet_range or bullet[0] < 0 or bullet[0] > WIDTH or bullet[1] < 0 or bullet[
+        if distance_traveled > bullet_range or single_bullet[0] < 0 or single_bullet[0] > WIDTH or single_bullet[1] < 0 or single_bullet[
             1] > HEIGHT:
-            player.bullets.remove(bullet)
+            player.bullets.remove(single_bullet)
 
     # Spawn enemies based on the spawn interval
     global last_spawn_time
@@ -225,8 +225,8 @@ def update_game_objects():
         last_spawn_time = current_time
 
     # Move enemies towards player
-    for enemy in enemies:
-        enemy.move_towards_player(player.x, player.y, enemies)
+    for single_enemy in enemies:
+        single_enemy.move_towards_player(player.x, player.y, enemies)
 
 
 # Initialize Pygame
