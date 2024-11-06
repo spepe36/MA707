@@ -23,7 +23,7 @@ class Player:
             self.x -= self.speed
         if keys[pygame.K_d] and self.x + self.speed + self.size < width:
             self.x += self.speed
-    '''
+
     def avoid_enemies(player, enemies):
         """AI function to move the player smoothly away from nearby enemies while seeking open spaces."""
         safe_distance = 150  # Minimum distance to maintain from enemies
@@ -58,26 +58,26 @@ class Player:
 
         player.x = max(0, min(player.width - player.size, player.x))
         player.y = max(0, min(player.height - player.size, player.y))
-    '''
+
 
     def shoot(self, keys, bullet_speed, bullet_cooldown, current_time, last_bullet_time):
         if current_time - last_bullet_time >= bullet_cooldown:
-            bullet_width = self.bullet_size  # Use the bullet size property from the player
+            bullet_width = self.bullet_size
 
             if keys[pygame.K_UP]:
                 self.bullets.append(
-                    [self.x + self.size // 3, self.y, 0, -bullet_speed, self.x, self.y, bullet_width])  # Up
+                    [self.x + self.size // 3, self.y, 0, -bullet_speed, self.x, self.y, bullet_width])
             elif keys[pygame.K_DOWN]:
                 self.bullets.append(
                     [self.x + self.size // 3, self.y + self.size, 0, bullet_speed, self.x, self.y,
-                     bullet_width])  # Down
+                     bullet_width])
             elif keys[pygame.K_LEFT]:
                 self.bullets.append(
-                    [self.x, self.y + self.size // 3, -bullet_speed, 0, self.x, self.y, bullet_width])  # Left
+                    [self.x, self.y + self.size // 3, -bullet_speed, 0, self.x, self.y, bullet_width])
             elif keys[pygame.K_RIGHT]:
                 self.bullets.append(
                     [self.x + self.size, self.y + self.size // 3, bullet_speed, 0, self.x, self.y,
-                     bullet_width])  # Right
+                     bullet_width])
 
             last_bullet_time = current_time
 
@@ -97,25 +97,23 @@ class Enemy:
 
     def move_towards_player(self, player_x, player_y, enemies, separation_distance=100, cohesion_factor=0.005,
                             alignment_factor=0.05, target_factor=0.1):
-        # Separation
+
         separation = pygame.Vector2(0, 0)
         count = 0
         for other in enemies:
-            if other != self:  # Avoid self
+            if other != self:
                 dist = pygame.Vector2(self.x - other.x, self.y - other.y).length()
                 if dist < separation_distance:
-                    # Increase the repulsion factor to strengthen the separation force
-                    repulsion_force = 1 / dist  # Increase repulsion force as they get closer
+                    repulsion_force = 1 / dist
                     separation += (pygame.Vector2(self.x - other.x, self.y - other.y).normalize() * repulsion_force)
                     count += 1
         if count > 0:
-            separation /= count  # Average separation force
+            separation /= count
 
-        # Alignment
         alignment = pygame.Vector2(0, 0)
         count = 0
         for other in enemies:
-            if other != self:  # Avoid self
+            if other != self:
                 dist = pygame.Vector2(self.x - other.x, self.y - other.y).length()
                 if dist < separation_distance:
                     alignment += other.velocity
@@ -123,20 +121,16 @@ class Enemy:
         if count > 0:
             alignment = (alignment / count).normalize() * alignment_factor
 
-        # Cohesion (decay if too close)
         cohesion_vector = pygame.Vector2(player_x - self.x, player_y - self.y).normalize()
         distance_to_player = cohesion_vector.length()
 
-        # Adjust cohesion based on distance to the player
         if distance_to_player < separation_distance:
             cohesion_factor *= (distance_to_player / separation_distance)
 
         cohesion = cohesion_vector * cohesion_factor
 
-        # Direct targeting vector towards the player
         target_direction = pygame.Vector2(player_x - self.x, player_y - self.y).normalize() * target_factor
 
-        # Calculate the final velocity vector and update position
         self.velocity += separation + alignment + cohesion + target_direction
         if self.velocity.length() > self.speed:
             self.velocity = self.velocity.normalize() * self.speed
