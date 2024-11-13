@@ -16,6 +16,7 @@ def handle_input():
                 sys.exit()
 
 
+
 def check_collision(rect1, rect2):
     """Function to check if two rectangles are colliding."""
 
@@ -71,6 +72,7 @@ def enemy_selected():
     return random.choice(color_array)
 
 
+
 def spawn_enemy():
     """Function to spawn enemies at a given location."""
 
@@ -107,6 +109,7 @@ def spawn_enemy():
         y = random.randint(0, HEIGHT - enemy_size)
 
     return Enemy(x, y, enemy_size, enemy_color, enemy_speed)
+
 
 
 def draw_ui():
@@ -189,6 +192,7 @@ def apply_upgrade(option):
     player.bullets.clear()
 
     upgrade_menu_open = False
+
 
 def update_game_objects():
     """Function to update all game objects."""

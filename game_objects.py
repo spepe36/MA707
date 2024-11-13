@@ -1,6 +1,7 @@
 import pygame
 import random
 
+
 class Player:
     def __init__(self, x, y, size, color, speed, health, width, height, bullet_size):
         self.x = x
@@ -85,6 +86,7 @@ class Player:
 
     def draw(self, screen):
         pygame.draw.rect(screen, self.color, (self.x, self.y, self.size, self.size))
+
 
 class Enemy:
     def __init__(self, x, y, size, color, speed):

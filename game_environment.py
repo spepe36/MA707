@@ -1,6 +1,101 @@
 import pygame
 import random
 from game_objects import Player, Enemy
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import random
+import numpy as np
+from collections import deque
+
+
+# Define the neural network for the DQN
+class DQN(nn.Module):
+    def __init__(self, state_size, action_size):
+        super(DQN, self).__init__()
+        self.fc1 = nn.Linear(state_size, 128)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, action_size)
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        return self.fc3(x)
+
+
+class EnemyAgent:
+    def __init__(self, state_size, action_size):
+        self.state_size = state_size
+        self.action_size = action_size
+        self.memory = deque(maxlen=2000)
+        self.gamma = 0.95  # Discount factor
+        self.epsilon = 1.0  # Exploration rate
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.995
+        self.learning_rate = 0.001
+
+        # Define the device (GPU if available, else CPU)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # Neural network setup
+        self.model = self._build_model().to(self.device)
+        self.criterion = nn.MSELoss()
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
+
+    def _build_model(self):
+        # A simple neural network model for Q-learning
+        return nn.Sequential(
+            nn.Linear(self.state_size, 24),
+            nn.ReLU(),
+            nn.Linear(24, 24),
+            nn.ReLU(),
+            nn.Linear(24, self.action_size)
+        )
+
+    def remember(self, state, action, reward, next_state, done):
+        self.memory.append((state, action, reward, next_state, done))
+
+    def act(self, state):
+        if np.random.rand() <= self.epsilon:
+            return random.randrange(self.action_size)  # Random action (exploration)
+        state = torch.FloatTensor(state).unsqueeze(0).to(self.device)  # Convert state to tensor
+        act_values = self.model(state)
+        return torch.argmax(act_values[0]).item()  # Return action with highest Q-value
+
+    def replay(self, batch_size):
+        if len(self.memory) < batch_size:
+            return
+
+        minibatch = random.sample(self.memory, batch_size)
+        for state, action, reward, next_state, done in minibatch:
+            # Convert state and next_state to tensors
+            state = torch.FloatTensor(state).to(self.device)
+            next_state = torch.FloatTensor(next_state).to(self.device)
+
+            # Predicted Q-values for the current state
+            current_q_values = self.model(state)
+
+            # Target Q-values
+            with torch.no_grad():
+                next_q_values = self.model(next_state)
+                max_next_q_value = torch.max(next_q_values).item()
+                target = reward + (self.gamma * max_next_q_value if not done else reward)
+
+            # Update only the Q-value for the chosen action
+            target_f = current_q_values.clone()
+            target_f[action] = target  # Only modify the Q-value of the chosen action
+
+            # Compute the loss only for the chosen action
+            loss = self.criterion(current_q_values[action], torch.FloatTensor([target]).to(self.device))
+
+            # Backpropagation
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+        # Reduce exploration rate
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
 
 
 class GameEnv:
@@ -121,7 +216,6 @@ class GameEnv:
                 return -10, True
         return 0, False
 
-
     def render(self):
         self.screen.fill((230, 230, 230))
         self.player.draw(self.screen)
@@ -130,39 +224,82 @@ class GameEnv:
         pygame.display.flip()
         self.clock.tick(60)
 
+
     def close(self):
         pygame.quit()
 
 
 def main():
     game_env = GameEnv(800, 600)
+    state_size = len(game_env.get_state())
+    action_size = 5  # UP, DOWN, LEFT, RIGHT, STAY
+    enemy_agent = EnemyAgent(state_size, action_size)
+    batch_size = 32
 
-    while not game_env.done:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                game_env.close()
-                return
+    while True:
+        state = game_env.reset()
+        done = False
 
-        keys = pygame.key.get_pressed()
-        action = None
-        if keys[pygame.K_UP]:
-            action = "UP"
-        elif keys[pygame.K_DOWN]:
-            action = "DOWN"
-        elif keys[pygame.K_LEFT]:
-            action = "LEFT"
-        elif keys[pygame.K_RIGHT]:
-            action = "RIGHT"
+        while not done:
+            # Player manual control
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    game_env.close()
+                    return
 
-        if action:
-            game_env.step(action)
-            print(game_env.get_state())
+            keys = pygame.key.get_pressed()
+            action = None
+            if keys[pygame.K_UP]:
+                action = "UP"
+            elif keys[pygame.K_DOWN]:
+                action = "DOWN"
+            elif keys[pygame.K_LEFT]:
+                action = "LEFT"
+            elif keys[pygame.K_RIGHT]:
+                action = "RIGHT"
 
-        game_env.render()
+            # Initialize next_state to ensure it's always defined
+            next_state = state  # Default to current state if no action is taken
+            reward = 0  # Default reward if no action is taken
 
-    print("Game Over!")
-    pygame.time.delay(2000)
-    game_env.close()
+            if action:
+                # Perform the step with the player's action
+                next_state, reward, done = game_env.step(action)
+
+            # Enemy actions based on the RL agent
+            actions = []
+            for enemy in game_env.enemies:
+                enemy_action = enemy_agent.act(state)
+                actions.append(enemy_action)
+
+            # Apply actions to the enemies
+            for idx, enemy_action in enumerate(actions):
+                if enemy_action == 0:
+                    game_env.enemies[idx].y -= game_env.enemies[idx].speed  # UP
+                elif enemy_action == 1:
+                    game_env.enemies[idx].y += game_env.enemies[idx].speed  # DOWN
+                elif enemy_action == 2:
+                    game_env.enemies[idx].x -= game_env.enemies[idx].speed  # LEFT
+                elif enemy_action == 3:
+                    game_env.enemies[idx].x += game_env.enemies[idx].speed  # RIGHT
+                # Action 4 means STAY, no movement
+
+            # Render the game
+            game_env.render()
+
+            # Store the experience for each enemy in the agent's memory
+            for idx, enemy in enumerate(game_env.enemies):
+                # Remember the action taken by each enemy
+                enemy_agent.remember(state, actions[idx], reward, next_state, done)
+
+            # Update state to the next state for the next iteration
+            state = next_state
+
+            # Train the enemy's RL agent
+            enemy_agent.replay(batch_size)
+
+        print("Game Over!")
+        pygame.time.delay(2000)
 
 
 if __name__ == "__main__":
