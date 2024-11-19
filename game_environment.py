@@ -137,15 +137,12 @@ class GameEnv:
 
         return player_state + enemies_state
 
-    def step(self, action):
-        self.handle_input(action)
-
+    def step(self):
         current_time = pygame.time.get_ticks()
         if current_time - self.last_spawn_time > self.spawn_interval:
             self.spawn_enemy()
             self.last_spawn_time = current_time
 
-        self.update_game_objects()
         reward, self.done = self.check_collisions()
         elapsed_time = current_time - self.start_time
 
@@ -155,16 +152,6 @@ class GameEnv:
 
         state = self.get_state()
         return state, reward, self.done
-
-    def handle_input(self, action):
-        if action == "UP":
-            self.player.y = max(0, self.player.y - self.player.speed)
-        elif action == "DOWN":
-            self.player.y = min(self.height - self.player.size, self.player.y + self.player.speed)
-        elif action == "LEFT":
-            self.player.x = max(0, self.player.x - self.player.speed)
-        elif action == "RIGHT":
-            self.player.x = min(self.width - self.player.size, self.player.x + self.player.speed)
 
     def spawn_enemy(self):
         """Function to spawn enemies at a given location."""
@@ -204,10 +191,6 @@ class GameEnv:
         new_enemy = Enemy(x, y, enemy_size, enemy_color, enemy_speed)
         self.enemies.append(new_enemy)
 
-    def update_game_objects(self):
-        for enemy in self.enemies:
-            enemy.move_towards_player(self.player.x, self.player.y, self.enemies)
-
     def check_collisions(self):
         player_rect = (self.player.x, self.player.y, self.player.size, self.player.size)
         for enemy in self.enemies:
@@ -224,13 +207,14 @@ class GameEnv:
         pygame.display.flip()
         self.clock.tick(60)
 
-
     def close(self):
         pygame.quit()
 
 
 def main():
-    game_env = GameEnv(800, 600)
+    width = 1200
+    height = 900
+    game_env = GameEnv(width, height)
     state_size = len(game_env.get_state())
     action_size = 5  # UP, DOWN, LEFT, RIGHT, STAY
     enemy_agent = EnemyAgent(state_size, action_size)
@@ -241,30 +225,16 @@ def main():
         done = False
 
         while not done:
-            # Player manual control
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    game_env.close()
-                    return
-
-            keys = pygame.key.get_pressed()
-            action = None
-            if keys[pygame.K_UP]:
-                action = "UP"
-            elif keys[pygame.K_DOWN]:
-                action = "DOWN"
-            elif keys[pygame.K_LEFT]:
-                action = "LEFT"
-            elif keys[pygame.K_RIGHT]:
-                action = "RIGHT"
+            # Use the Player AI to decide the player's action
+            player_action = game_env.player.avoid_enemies(game_env.enemies, width, height)
+            if not player_action:
+                player_action = "STAY"
 
             # Initialize next_state to ensure it's always defined
             next_state = state  # Default to current state if no action is taken
             reward = 0  # Default reward if no action is taken
 
-            if action:
-                # Perform the step with the player's action
-                next_state, reward, done = game_env.step(action)
+            next_state, reward, done = game_env.step()
 
             # Enemy actions based on the RL agent
             actions = []

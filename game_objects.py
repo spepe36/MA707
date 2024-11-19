@@ -14,6 +14,8 @@ class Player:
         self.width = width
         self.height = height
         self.bullet_size = bullet_size
+        self.move_x = 0
+        self.move_y = 0
 
     def move(self, keys, width, height):
         if keys[pygame.K_w] and self.y - self.speed > 0:
@@ -25,41 +27,47 @@ class Player:
         if keys[pygame.K_d] and self.x + self.speed + self.size < width:
             self.x += self.speed
 
-    def avoid_enemies(player, enemies):
-        """AI function to move the player smoothly away from nearby enemies while seeking open spaces."""
-        safe_distance = 150  # Minimum distance to maintain from enemies
+    def avoid_enemies(self, enemies, width, height):
+        """AI function to move the player smoothly away from enemies while seeking open spaces."""
+        safe_distance = 175  # Distance at which enemies start to repel the player
         move_x, move_y = 0, 0
 
+        # Calculate repulsive forces from enemies
         for enemy in enemies:
-            distance_x = player.x - enemy.x
-            distance_y = player.y - enemy.y
+            distance_x = self.x - enemy.x
+            distance_y = self.y - enemy.y
             distance = (distance_x ** 2 + distance_y ** 2) ** 0.5
 
             if distance < safe_distance:
-                move_x += distance_x / (distance ** 2)
-                move_y += distance_y / (distance ** 2)
+                repulsion_strength = safe_distance / (distance ** 2)
+                move_x += distance_x * repulsion_strength
+                move_y += distance_y * repulsion_strength
 
-        if move_x != 0 or move_y != 0:
-            norm = (move_x ** 2 + move_y ** 2) ** 0.5
-            move_x = (move_x / norm) * player.speed
-            move_y = (move_y / norm) * player.speed
+        # Calculate attractive force towards the center of open space
+        center_x, center_y = width / 2, height / 2
+        attract_x = (center_x - self.x) * 0.01  # Small factor for smooth attraction
+        attract_y = (center_y - self.y) * 0.01  # Small factor for smooth attraction
 
-        if player.x + move_x < 0 or player.x + move_x > player.width - player.size:
-            move_x = 0  # Prevent moving outside horizontal boundaries
-        if player.y + move_y < 0 or player.y + move_y > player.height - player.size:
-            move_y = 0  # Prevent moving outside vertical boundaries
+        # Combine forces
+        move_x += attract_x
+        move_y += attract_y
 
-        if player.x <= 0 or player.x >= player.width - player.size:
-            move_x = player.speed  # Attempt to move away from the wall horizontally
-        if player.y <= 0 or player.y >= player.height - player.size:
-            move_y = player.speed  # Attempt to move away from the wall vertically
+        norm = (move_x ** 2 + move_y ** 2) ** 0.5
+        if norm != 0:
+            move_x = (move_x / norm) * self.speed
+            move_y = (move_y / norm) * self.speed
 
-        player.x += move_x
-        player.y += move_y
+        # Smooth movement
+        smoothing_factor = 0.2
+        self.move_x = (1 - smoothing_factor) * self.move_x + smoothing_factor * move_x
+        self.move_y = (1 - smoothing_factor) * self.move_y + smoothing_factor * move_y
 
-        player.x = max(0, min(player.width - player.size, player.x))
-        player.y = max(0, min(player.height - player.size, player.y))
+        self.x += self.move_x
+        self.y += self.move_y
 
+        # Constrain movement within screen boundaries
+        self.x = max(0, min(width - self.size, self.x))
+        self.y = max(0, min(height - self.size, self.y))
 
     def shoot(self, keys, bullet_speed, bullet_cooldown, current_time, last_bullet_time):
         if current_time - last_bullet_time >= bullet_cooldown:

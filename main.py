@@ -3,6 +3,7 @@ import sys
 import random
 from game_objects import Player, Enemy
 
+
 def handle_input():
     """Function to handle user input."""
 
@@ -14,7 +15,6 @@ def handle_input():
             if event.key == pygame.K_ESCAPE:
                 pygame.quit()
                 sys.exit()
-
 
 
 def check_collision(rect1, rect2):
@@ -72,7 +72,6 @@ def enemy_selected():
     return random.choice(color_array)
 
 
-
 def spawn_enemy():
     """Function to spawn enemies at a given location."""
 
@@ -109,7 +108,6 @@ def spawn_enemy():
         y = random.randint(0, HEIGHT - enemy_size)
 
     return Enemy(x, y, enemy_size, enemy_color, enemy_speed)
-
 
 
 def draw_ui():
@@ -151,6 +149,7 @@ def draw_upgrade_menu(upgrades):
 
         if pygame.mouse.get_pressed()[0] and button_rect.collidepoint(mouse_pos):
             apply_upgrade(option)
+
 
 def select_random_upgrades():
     """Function to select three random upgrades from the upgrade options."""
@@ -194,9 +193,9 @@ def apply_upgrade(option):
     upgrade_menu_open = False
 
 
+# Modify the update_game_objects function to use this new AI function
 def update_game_objects():
     """Function to update all game objects."""
-
     global last_bullet_time, last_spawn_time
 
     keys = pygame.key.get_pressed()
@@ -204,10 +203,7 @@ def update_game_objects():
 
     current_time = pygame.time.get_ticks()
 
-    '''
-    # Basic player AI testing:
-    Player.avoid_enemies(player, enemies)
-    '''
+    player.avoid_enemies(enemies, WIDTH, HEIGHT)
 
     last_bullet_time = player.shoot(keys, bullet_speed, bullet_cooldown, current_time, last_bullet_time)
 
@@ -216,9 +212,7 @@ def update_game_objects():
         single_bullet[1] += single_bullet[3]
         distance_traveled = ((single_bullet[0] - single_bullet[4]) ** 2 + (single_bullet[1] - single_bullet[5]) ** 2) ** 0.5
 
-        # Remove bullet if it travels beyond its range or goes off-screen
-        if distance_traveled > bullet_range or single_bullet[0] < 0 or single_bullet[0] > WIDTH or single_bullet[1] < 0 or single_bullet[
-            1] > HEIGHT:
+        if distance_traveled > bullet_range or single_bullet[0] < 0 or single_bullet[0] > WIDTH or single_bullet[1] < 0 or single_bullet[1] > HEIGHT:
             player.bullets.remove(single_bullet)
 
     if current_time - last_spawn_time > spawn_interval:
