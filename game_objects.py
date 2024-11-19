@@ -1,6 +1,6 @@
 import pygame
 import random
-
+import math
 
 class Player:
     def __init__(self, x, y, size, color, speed, health, width, height, bullet_size):
@@ -104,6 +104,13 @@ class Enemy:
         self.color = color
         self.speed = speed
         self.velocity = pygame.Vector2(random.uniform(-1, 1), random.uniform(-1, 1))
+        self.angle_to_player = 0  # Angle from the enemy to the player (in degrees)
+
+    def update(self, player_x, player_y):
+        # Calculate the angle from the enemy to the player
+        dx = player_x - self.x
+        dy = player_y - self.y
+        self.angle_to_player = math.degrees(math.atan2(dy, dx))  # Angle in degr
 
     def move_towards_player(self, player_x, player_y, enemies, separation_distance=100, cohesion_factor=0.005,
                             alignment_factor=0.05, target_factor=0.1):
