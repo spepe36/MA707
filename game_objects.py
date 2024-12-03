@@ -58,7 +58,7 @@ class Player:
             move_y = (move_y / norm) * self.speed
 
         # Smooth movement
-        smoothing_factor = 0.2
+        smoothing_factor = 0.3
         self.move_x = (1 - smoothing_factor) * self.move_x + smoothing_factor * move_x
         self.move_y = (1 - smoothing_factor) * self.move_y + smoothing_factor * move_y
 
@@ -106,11 +106,10 @@ class Enemy:
         self.velocity = pygame.Vector2(random.uniform(-1, 1), random.uniform(-1, 1))
         self.angle_to_player = 0  # Angle from the enemy to the player (in degrees)
 
-    def update(self, player_x, player_y):
-        # Calculate the angle from the enemy to the player
-        dx = player_x - self.x
-        dy = player_y - self.y
-        self.angle_to_player = math.degrees(math.atan2(dy, dx))  # Angle in degr
+    def update(self, new_x, new_y):
+        # Update the stored position based on the model's decision
+        self.x = new_x
+        self.y = new_y
 
     def move_towards_player(self, player_x, player_y, enemies, separation_distance=100, cohesion_factor=0.005,
                             alignment_factor=0.05, target_factor=0.1):

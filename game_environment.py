@@ -1,5 +1,4 @@
 import pygame
-import random
 from game_objects import Player, Enemy
 import torch
 import torch.nn as nn
@@ -8,8 +7,8 @@ import random
 import numpy as np
 from collections import deque
 import pickle
-import time
 import math
+import matplotlib.pyplot as plt
 
 
 # Define the neural network for the DQN
@@ -121,6 +120,8 @@ class GameEnv:
         self.start_time = pygame.time.get_ticks()
         self.max_duration = 30000
         self.max_enemies = 25
+        self.simulated_time = 0
+        self.time_step = 50
         self.done = False
 
         # Initialize pygame if in visual mode
@@ -132,9 +133,10 @@ class GameEnv:
 
     def reset(self):
         self.player.x, self.player.y = self.width // 2, self.height // 2
+        self.simulated_time = 0
+        self.last_spawn_time = 0
         self.player.health = 1
         self.enemies.clear()
-        self.last_spawn_time = pygame.time.get_ticks()
         self.start_time = pygame.time.get_ticks()
         self.done = False
         return self.get_state()
@@ -155,27 +157,28 @@ class GameEnv:
 
         return player_state + enemies_state
 
+
     def step(self):
-        current_time = pygame.time.get_ticks()
-        if current_time - self.last_spawn_time > self.spawn_interval:
+        self.simulated_time += self.time_step  # Advance simulated time
+
+        if self.simulated_time - self.last_spawn_time > self.spawn_interval:
             self.spawn_enemy()
-            self.last_spawn_time = current_time
+            self.last_spawn_time = self.simulated_time
 
-        previous_distance = self.calculate_distance_to_player()
+        previous_distance = self.calculate_distance_to_player()  # Record the previous distance
 
-        # Efficiently update enemies using a single loop
+        # Update each enemy's position based on the model's decision
         for enemy in self.enemies:
-            enemy.update(self.player.x, self.player.y)
+            # Assuming you have a method to get the model's calculated position for the enemy
+            new_x, new_y = self.get_new_enemy_position(enemy)  # Get the new position from the model
+            enemy.update(new_x, new_y)  # Update the enemy with the new position
 
-        reward, self.done = self.calculate_reward(previous_distance)
+        current_distance = self.calculate_distance_to_player()  # Calculate the current distance after enemy updates
 
-        # Reward calculation should be handled once, after all updates
-        elapsed_time = current_time - self.start_time
-        if elapsed_time >= self.max_duration:
-            reward -= 100
-            self.done = True
-
+        reward, self.done = self.calculate_reward(previous_distance,
+                                                  current_distance)  # Pass both distances to reward calculation
         state = self.get_state()
+
         return state, reward, self.done
 
     def spawn_enemy(self):
@@ -211,19 +214,21 @@ class GameEnv:
         distances = [math.hypot(enemy.x - self.player.x, enemy.y - self.player.y) for enemy in self.enemies]
         return min(distances)
 
-    def calculate_reward(self, previous_distance):
-        current_distance = self.calculate_distance_to_player()
+    def calculate_reward(self, previous_distance, current_distance):
         collision_with_player = self.check_collision_with_player()
+
+        print("Previous Distance:", previous_distance)
+        print("Current Distance:", current_distance)
 
         # Reward function
         if collision_with_player:
             return 1000, True
         elif current_distance < previous_distance:
-            return 20, False
+            return 60, False  # Reward for getting closer to the player
         elif current_distance > previous_distance:
-            return -50, False
+            return -200, False  # Penalty for moving away from the player
         else:
-            return -0.5, False
+            return -40, False  # Small penalty for no movement change
 
     def check_collision_with_player(self):
         player_rect = (self.player.x, self.player.y, self.player.size, self.player.size)
@@ -234,70 +239,49 @@ class GameEnv:
         return False
 
     def render(self):
-        if self.visual_mode and self.screen:
-            self.screen.fill((0, 0, 0))
-            self.player.draw(self.screen)
-            for enemy in self.enemies:
-                enemy.draw(self.screen)
-            pygame.display.flip()
+        if not self.visual_mode or not self.screen:
+            return  # Skip rendering in non-visual mode
+
+        self.screen.fill((0, 0, 0))
+        self.player.draw(self.screen)
+        for enemy in self.enemies:
+            enemy.draw(self.screen)
+        pygame.display.flip()
 
     def close(self):
         pygame.quit()
 
 
-def test_enemy_behavior():
-    # Load the trained agent
-    with open("trained_enemy_ai.pkl", 'rb') as f:
-        enemy_agent = pickle.load(f)
-
-    # Initialize the game environment without visual mode
-    game_env = GameEnv(1200, 900, visual_mode=False)
-    state = game_env.reset()
-
-    done = False
-    while not done:
-        # Get the action for each enemy from the trained agent
-        actions = [enemy_agent.act(state) for _ in game_env.enemies]
-
-        # Apply the actions to each enemy
-        for idx, enemy_action in enumerate(actions):
-            speed = game_env.enemies[idx].speed
-            if enemy_action == 0:
-                game_env.enemies[idx].y -= speed  # UP
-            elif enemy_action == 1:
-                game_env.enemies[idx].y += speed  # DOWN
-            elif enemy_action == 2:
-                game_env.enemies[idx].x -= speed  # LEFT
-            elif enemy_action == 3:
-                game_env.enemies[idx].x += speed  # RIGHT
-            # Action 4 means STAY, no movement
-
-        # Step the environment forward
-        next_state, reward, done = game_env.step()
-
-        # Update the state for the next step
-        state = next_state
-
-        # Render if visual mode is enabled
-        if game_env.visual_mode:
-            game_env.render()
-
-    game_env.close()
+def plot_rewards():
+    plt.figure(figsize=(10, 6))
+    plt.plot(all_rewards, label="Total Reward per Simulation", color='blue')
+    plt.xlabel("Simulation")
+    plt.ylabel("Total Reward")
+    plt.title("Reward Progression Over Simulations")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 
 def test_enemy_behavior(file_name):
+    width = 1200
+    height = 900
     # Load the trained agent
     with open(file_name, 'rb') as f:
         enemy_agent = pickle.load(f)
 
     # Initialize the game environment with visual mode enabled
-    game_env = GameEnv(1200, 900, visual_mode=True)  # Change visual_mode to True
+    game_env = GameEnv(width, height, visual_mode=True)  # Change visual_mode to True
     state = game_env.reset()
 
     done = False
     while not done:
         # Get the action for each enemy from the trained agent
         actions = [enemy_agent.act(state) for _ in game_env.enemies]
+
+        player_action = game_env.player.avoid_enemies(game_env.enemies, width, height)
+        if not player_action:
+            player_action = "STAY"
 
         # Apply the actions to each enemy
         for idx, enemy_action in enumerate(actions):
@@ -324,67 +308,63 @@ def test_enemy_behavior(file_name):
 
     game_env.close()
 
+all_rewards = []
 
-def run_fast_simulations(num_simulations=100, visual_mode=False, save_path="enemy_ai.pkl"):
-    width = 1200
-    height = 900
+def run_simulations(num_simulations=100, visual_mode=False, save_path="enemy_ai.pkl"):
+    width, height = 1200, 900
     game_env = GameEnv(width, height, visual_mode)
     state_size = len(game_env.get_state())
     action_size = 5  # UP, DOWN, LEFT, RIGHT, STAY
     enemy_agent = EnemyAgent(state_size, action_size)
     batch_size = 32
+    time_scaling_factor = 10  # Adjust for faster simulations
+
+    all_rewards = []  # Track rewards across simulations
 
     for simulation in range(num_simulations):
         print(f"Starting simulation {simulation + 1}/{num_simulations}")
 
         state = game_env.reset()
         done = False
-        simulation_time = 0  # Track time step in simulation (no reliance on real-time)
+        simulation_time = 0  # Manual time progression
 
         while not done:
-            # Instead of using real time, control the steps manually
-            # Adjust the amount of time progression per step (e.g., simulate faster time)
-            simulation_time += 1  # Each loop counts as a simulation step
+            simulation_time += 1  # Increment simulated time
 
-            player_action = game_env.player.avoid_enemies(game_env.enemies, width, height)
-            if not player_action:
-                player_action = "STAY"
+            # Player action
+            player_action = game_env.player.avoid_enemies(game_env.enemies, width, height) or "STAY"
 
+            # Environment step
             next_state, reward, done = game_env.step()
+            all_rewards.append(reward)
+            print(f"reward: {reward}")
 
+            # Enemy actions
             actions = [enemy_agent.act(state) for _ in game_env.enemies]
+            for enemy, action in zip(game_env.enemies, actions):
+                if action == 0: enemy.y -= enemy.speed
+                elif action == 1: enemy.y += enemy.speed
+                elif action == 2: enemy.x -= enemy.speed
+                elif action == 3: enemy.x += enemy.speed
+                # Action 4: STAY
 
-            for idx, enemy_action in enumerate(actions):
-                speed = game_env.enemies[idx].speed
-                if enemy_action == 0:
-                    game_env.enemies[idx].y -= speed  # UP
-                elif enemy_action == 1:
-                    game_env.enemies[idx].y += speed  # DOWN
-                elif enemy_action == 2:
-                    game_env.enemies[idx].x -= speed  # LEFT
-                elif enemy_action == 3:
-                    game_env.enemies[idx].x += speed  # RIGHT
-                # Action 4 means STAY, no movement
-
-            # Skip rendering if visual_mode is False
             if visual_mode:
                 game_env.render()
-                game_env.clock.tick(60)  # Limit FPS to 60
+                game_env.clock.tick(60)  # Limit FPS in visual mode
 
-            # Memory storage timing
+            # Memory storage
             for idx, enemy in enumerate(game_env.enemies):
                 enemy_agent.remember(state, actions[idx], reward, next_state, done)
 
-            # Update state to the next state for the next iteration
             state = next_state
 
-            # Training (replay) timing
-            enemy_agent.replay(batch_size)
-
-            # Check if we should end the simulation based on our simulated time, not real-time
-            if simulation_time >= game_env.max_duration // 10:  # Speed up by a factor of 10
+            # End simulation early if time exceeds scaled duration
+            if simulation_time >= game_env.max_duration // time_scaling_factor:
                 reward -= 10
                 done = True
+
+        # Train the agent after all simulations
+        enemy_agent.replay(batch_size)
 
     # Save the trained enemy AI after all simulations
     with open(save_path, 'wb') as f:
@@ -394,6 +374,12 @@ def run_fast_simulations(num_simulations=100, visual_mode=False, save_path="enem
 
 if __name__ == "__main__":
 
-    run_fast_simulations(num_simulations=10000, visual_mode=False, save_path="trained_enemy_ai.pkl")
+    run_simulations(num_simulations=10, visual_mode=False, save_path="trained_enemy_ai.pkl")
 
-    test_enemy_behavior("trained_enemy_ai.pkl")
+    # Run code below to see result of the simulations:
+    # test_enemy_behavior("trained_enemy_ai.pkl")
+
+    print(all_rewards)
+    plot_rewards()
+
+

@@ -260,7 +260,7 @@ upgrade_options = [
 ]
 
 # Game variables
-player = Player(WIDTH // 2, HEIGHT // 2, 30, RED, 4, 1, WIDTH, HEIGHT, 5)
+player = Player(WIDTH // 2, HEIGHT // 2, 30, RED, 6, 1, WIDTH, HEIGHT, 5)
 enemies = []
 
 # Round Variables
