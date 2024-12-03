@@ -54,8 +54,8 @@ def check_collisions():
 def enemy_selected():
     """Function to choose the type of enemy to spawn based on the round's spawn rates."""
 
-    spawn_rates = {1: {'yellow': 1}, # 100% of enemies will be yellow
-                   2: {'yellow': 7, 'green': 3}, # 70% of enemies will be yellow, 30% will be green
+    spawn_rates = {1: {'yellow': 1},  # 100% of enemies will be yellow
+                   2: {'yellow': 7, 'green': 3},  # 70% of enemies will be yellow, 30% will be green
                    3: {'yellow': 5, 'green': 3, 'red': 2},
                    4: {'yellow': 2, 'green': 5, 'red': 3},
                    5: {'yellow': 1, 'green': 2, 'red': 3, 'purple': 4}}

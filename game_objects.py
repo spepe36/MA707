@@ -1,6 +1,6 @@
 import pygame
 import random
-import math
+
 
 class Player:
     def __init__(self, x, y, size, color, speed, health, width, height, bullet_size):
@@ -105,6 +105,9 @@ class Enemy:
         self.speed = speed
         self.velocity = pygame.Vector2(random.uniform(-1, 1), random.uniform(-1, 1))
         self.angle_to_player = 0  # Angle from the enemy to the player (in degrees)
+
+    def __repr__(self):
+        return f"Enemy(x={self.x}, y={self.y}, velocity={self.velocity}, angle={self.angle_to_player}))"
 
     def update(self, new_x, new_y):
         # Update the stored position based on the model's decision
