@@ -9,13 +9,16 @@ from collections import deque
 import pickle
 import math
 import matplotlib.pyplot as plt
+import cProfile
+import pstats
+from io import StringIO
 
 
 # Define the neural network for the DQN
 class DQN(nn.Module):
     def __init__(self, state_size, action_size):
         super(DQN, self).__init__()
-        self.fc1 = nn.Linear(state_size, 128)
+        self.fc1 = nn.Linear(152, 128)  # Adjust in_features to match input size
         self.fc2 = nn.Linear(128, 128)
         self.fc3 = nn.Linear(128, action_size)
 
@@ -40,27 +43,16 @@ class EnemyAgent:
         # Define the device (GPU if available, else CPU)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Neural network setup
-        self.model = self._build_model().to(self.device)
+        # DQN
+        self.model = DQN(state_size, action_size).to(self.device)
         self.criterion = nn.MSELoss()
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
-
-    def _build_model(self):
-
-        return nn.Sequential(
-            nn.Linear(self.state_size, 24),
-            nn.ReLU(),
-            nn.Linear(24, 24),
-            nn.ReLU(),
-            nn.Linear(24, self.action_size)
-        )
 
     def remember(self, state, action, reward, next_state, done):
 
         self.memory.append((state, action, reward, next_state, done))
 
     def act(self, state):
-
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.action_size)  # Random action (exploration)
 
@@ -165,22 +157,31 @@ class GameEnv:
         return self.get_state()
 
     def get_state(self):
-        player_state = [self.player.x, self.player.y]
+        player_state = [self.player.x / self.width, self.player.y / self.height]  # Normalized player position
         enemies_state = []
 
+        max_distance = math.sqrt(self.width ** 2 + self.height ** 2)
+
         for enemy in self.enemies:
-            dist_to_player = pygame.Vector2(self.player.x - enemy.x, self.player.y - enemy.y).length()
-            enemies_state.extend(
-                [enemy.x, enemy.y, enemy.size, enemy.angle_to_player, enemy.velocity.x, enemy.velocity.y,
-                 dist_to_player])
+            # Normalize enemy state values as before
+            normalized_x = enemy.x / self.width
+            normalized_y = enemy.y / self.height
+            normalized_angle = (enemy.angle_to_player + math.pi) / (2 * math.pi)
+            normalized_vx = enemy.velocity.x / 2.6
+            normalized_vy = enemy.velocity.y / 2.6
+
+            direction_to_player = pygame.Vector2(self.player.x - enemy.x, self.player.y - enemy.y)
+            dist_to_player = direction_to_player.length()
+            normalized_distance = dist_to_player / max_distance
+
+            enemies_state.extend([normalized_x, normalized_y, normalized_angle,
+                                  normalized_vx, normalized_vy, normalized_distance])
 
         max_enemies = self.max_enemies
+        enemies_state = enemies_state[:max_enemies * 6]
 
-        # Remove redundant zero-padding logic
-        enemies_state = enemies_state[:max_enemies * 7]  # Crop if more than needed
-
-        while len(enemies_state) < max_enemies * 7:
-            enemies_state.extend([0, 0, 0, 0, 0, 0, 0])
+        while len(enemies_state) < max_enemies * 6:
+            enemies_state.extend([0, 0, 0, 0, 0, 0])
 
         return player_state + enemies_state
 
@@ -292,17 +293,6 @@ class GameEnv:
         pygame.quit()
 
 
-def plot_rewards():
-    plt.figure(figsize=(10, 6))
-    plt.plot(all_rewards, label="Total Reward per Simulation", color='blue')
-    plt.xlabel("Simulation")
-    plt.ylabel("Total Reward")
-    plt.title("Reward Progression Over Simulations")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-
 # Run when checking results of the model
 def test_enemy_behavior(file_name):
     width, height = 1200, 900
@@ -350,7 +340,12 @@ def test_enemy_behavior(file_name):
     game_env.close()
 
 
-all_rewards = []  # Track rewards across simulations
+def plot_rewards(rewards_per_simulation):
+    plt.plot(range(1, len(rewards_per_simulation) + 1), rewards_per_simulation)
+    plt.xlabel('Simulation Episode')
+    plt.ylabel('Total Reward')
+    plt.title('Total Rewards per Simulation Episode')
+    plt.show()
 
 
 def run_simulations(num_simulations=100, visual_mode=False, save_path="enemy_ai.pkl"):
@@ -362,16 +357,17 @@ def run_simulations(num_simulations=100, visual_mode=False, save_path="enemy_ai.
     enemy_agent = EnemyAgent(state_size, action_size=5)
     game_env = GameEnv(width, height, enemy_agent, visual_mode)
 
-    # Continue with simulation logic
-    batch_size = 32
+    batch_size = 64
     time_scaling_factor = 10
+    rewards_per_simulation = []  # Store the total rewards for each simulation
 
     for simulation in range(num_simulations):
         print(f"Starting simulation {simulation + 1}/{num_simulations}")
 
         state = game_env.reset()
         done = False
-        simulation_time = 0  # Manual time progression
+        simulation_time = 0
+        total_rewards = 0  # Initialize total rewards for this simulation
 
         while not done:
             simulation_time += 1  # Increment simulated time
@@ -381,18 +377,15 @@ def run_simulations(num_simulations=100, visual_mode=False, save_path="enemy_ai.
 
             # Environment step
             next_state, rewards, done = game_env.step()
-            all_rewards.append(rewards)
+
+            total_rewards += sum(rewards)  # Accumulate rewards for this step
 
             # Enemy actions
             actions = [enemy_agent.act(state) for _ in game_env.enemies]
             for enemy, action in zip(game_env.enemies, actions):
-                dx, dy = game_env.action_to_movement(action, enemy)  # Get dx, dy for the movement
+                dx, dy = game_env.action_to_movement(action, enemy)
                 enemy.x += dx
                 enemy.y += dy
-
-            if visual_mode:
-                game_env.render()
-                game_env.clock.tick(60)  # Limit FPS in visual mode
 
             # Memory storage
             for idx, enemy in enumerate(game_env.enemies):
@@ -404,23 +397,47 @@ def run_simulations(num_simulations=100, visual_mode=False, save_path="enemy_ai.
             if simulation_time >= game_env.max_duration // time_scaling_factor:
                 done = True
 
+        # Save the total rewards for this simulation
+        rewards_per_simulation.append(total_rewards)
+
         # Train the agent after all simulations
         if len(enemy_agent.memory) >= batch_size:
             enemy_agent.replay(batch_size)
 
-        # Save the trained enemy AI after all simulations
+    # Save the trained enemy AI after all simulations
     with open(save_path, 'wb') as f:
         pickle.dump(enemy_agent, f)
     print(f"Trained enemy AI saved to {save_path}.")
 
+    # Return the rewards for further analysis
+    return rewards_per_simulation
+
+
+def profile_run_simulations(*args, **kwargs):
+    profiler = cProfile.Profile()
+    profiler.enable()  # Start profiling
+    result = run_simulations(*args, **kwargs)
+    profiler.disable()  # Stop profiling
+
+    # Print or save the profiling results
+    s = StringIO()
+    stats = pstats.Stats(profiler, stream=s)
+    stats.sort_stats('cumtime')  # Sort by cumulative time
+    stats.print_stats()  # Print the profiling results to the console
+    print(s.getvalue())  # Output the profiling results
+
+    return result
+
 
 if __name__ == "__main__":
 
-    run_simulations(num_simulations=100, visual_mode=False, save_path="trained_enemy_ai_100sims.pkl")
-    # print(all_rewards)
-    # plot_rewards()
+    # rewards = run_simulations(num_simulations=250, visual_mode=False, save_path="trained_enemy_ai_250sims.pkl")
+    # profile_run_simulations(num_simulations=100, visual_mode=False, save_path="enemy_ai.pkl")
+
+    # plot_rewards(rewards)
 
     # Run code below to see result of the simulations:
-    test_enemy_behavior("trained_enemy_ai_100sims.pkl")
+
+    test_enemy_behavior("enemy_ai.pkl")
 
 
