@@ -9,23 +9,23 @@ from collections import deque
 import pickle
 import math
 import matplotlib.pyplot as plt
-import cProfile
-import pstats
-from io import StringIO
 
 
 # Define the neural network for the DQN
 class DQN(nn.Module):
     def __init__(self, state_size, action_size):
         super(DQN, self).__init__()
-        self.fc1 = nn.Linear(152, 128)  # Adjust in_features to match input size
+        self.fc1 = nn.Linear(state_size, 128)
         self.fc2 = nn.Linear(128, 128)
-        self.fc3 = nn.Linear(128, action_size)
+        self.fc3 = nn.Linear(128, 128)
+        self.fc4 = nn.Linear(128, action_size)
 
     def forward(self, x):
         x = torch.relu(self.fc1(x))
         x = torch.relu(self.fc2(x))
-        return self.fc3(x)
+        x = torch.relu(self.fc3(x))
+        x = self.fc4(x)
+        return x
 
 
 # Define the EnemyAgent class
@@ -34,11 +34,11 @@ class EnemyAgent:
         self.state_size = state_size
         self.action_size = action_size
         self.memory = deque(maxlen=2000)
-        self.gamma = 0.95  # Discount factor
+        self.gamma = 0.99  # Discount factor
         self.epsilon = 1.0  # Exploration rate
         self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
-        self.learning_rate = 0.001
+        self.epsilon_decay = 0.99
+        self.learning_rate = 0.0005
 
         # Define the device (GPU if available, else CPU)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -116,7 +116,7 @@ class GameEnv:
         self.last_spawn_time = 0
         self.start_time = pygame.time.get_ticks()
         self.max_duration = 30000
-        self.max_enemies = 25
+        self.max_enemies = 1
         self.simulated_time = 0
         self.time_step = 50
         self.done = False
@@ -157,33 +157,26 @@ class GameEnv:
         return self.get_state()
 
     def get_state(self):
-        player_state = [self.player.x / self.width, self.player.y / self.height]  # Normalized player position
         enemies_state = []
 
         max_distance = math.sqrt(self.width ** 2 + self.height ** 2)
 
         for enemy in self.enemies:
-            # Normalize enemy state values as before
-            normalized_x = enemy.x / self.width
-            normalized_y = enemy.y / self.height
-            normalized_angle = (enemy.angle_to_player + math.pi) / (2 * math.pi)
-            normalized_vx = enemy.velocity.x / 2.6
-            normalized_vy = enemy.velocity.y / 2.6
 
-            direction_to_player = pygame.Vector2(self.player.x - enemy.x, self.player.y - enemy.y)
-            dist_to_player = direction_to_player.length()
-            normalized_distance = dist_to_player / max_distance
-
-            enemies_state.extend([normalized_x, normalized_y, normalized_angle,
-                                  normalized_vx, normalized_vy, normalized_distance])
+            enemies_state.extend([
+                self.player.x - enemy.x,
+                self.player.y - enemy.y,
+                enemy.velocity.x,
+                enemy.velocity.y
+            ])
 
         max_enemies = self.max_enemies
-        enemies_state = enemies_state[:max_enemies * 6]
+        enemies_state = enemies_state[:max_enemies * 4]
 
-        while len(enemies_state) < max_enemies * 6:
-            enemies_state.extend([0, 0, 0, 0, 0, 0])
+        while len(enemies_state) < max_enemies * 4:
+            enemies_state.extend([0, 0, 0, 0])
 
-        return player_state + enemies_state
+        return enemies_state
 
     def step(self):
         self.simulated_time += self.time_step  # Advance simulated time
@@ -213,6 +206,9 @@ class GameEnv:
             enemy.x += dx
             enemy.y += dy
 
+            enemy.x = max(0, min(enemy.x, self.width - enemy.size))
+            enemy.y = max(0, min(enemy.y, self.height - enemy.size))
+
             # Calculate the new distance to player
             current_distance = math.hypot(enemy.x - self.player.x, enemy.y - self.player.y)
 
@@ -222,7 +218,7 @@ class GameEnv:
                 self.done = True
             rewards.append(reward)
 
-        return state, rewards, self.done
+        return state, rewards, actions,  self.done
 
     def spawn_enemy(self):
         if len(self.enemies) >= self.max_enemies:
@@ -262,13 +258,11 @@ class GameEnv:
 
         # Reward function
         if collision_with_player:
-            return 10, True
-        elif current_distance < previous_distance:
-            return 1, False  # Reward for getting closer to the player
-        elif current_distance > previous_distance:
-            return -1, False  # Penalty for moving away from the player
+            return 100, True
         else:
-            return -1, False  # Small penalty for no movement change
+            # Penalize standing still or increasing distance more harshly
+            reward = (previous_distance - current_distance) * 5 - 2
+            return reward, False
 
     def check_collision_with_player(self):
         player_rect = (self.player.x, self.player.y, self.player.size, self.player.size)
@@ -280,7 +274,7 @@ class GameEnv:
 
     def render(self):
         if not self.visual_mode or not self.screen:
-            return  # Skip rendering in non-visual mode
+            return
 
         self.screen.fill((0, 0, 0))
         self.player.draw(self.screen)
@@ -311,8 +305,6 @@ def test_enemy_behavior(file_name):
         actions = [enemy_agent.act(state) for _ in game_env.enemies]
 
         player_action = game_env.player.avoid_enemies(game_env.enemies, width, height)
-        if not player_action:
-            player_action = "STAY"
 
         # Apply the actions to each enemy
         for idx, enemy_action in enumerate(actions):
@@ -328,7 +320,7 @@ def test_enemy_behavior(file_name):
             # Action 4 means STAY, no movement
 
         # Step the environment forward
-        next_state, rewards, done = game_env.step()
+        next_state, rewards, actions, done = game_env.step()
 
         # Update the state for the next step
         state = next_state
@@ -350,18 +342,19 @@ def plot_rewards(rewards_per_simulation):
 
 def run_simulations(num_simulations=100, visual_mode=False, save_path="enemy_ai.pkl"):
     width, height = 1200, 900
+    state_size = 4 # 4 * enemies
 
-    temporary_enemy_agent = EnemyAgent(state_size=0, action_size=5)  # Default state size, will update later
-    game_env = GameEnv(width, height, temporary_enemy_agent, visual_mode)
-    state_size = len(game_env.get_state())
     enemy_agent = EnemyAgent(state_size, action_size=5)
     game_env = GameEnv(width, height, enemy_agent, visual_mode)
 
-    batch_size = 64
+    batch_size = 32
     time_scaling_factor = 10
     rewards_per_simulation = []  # Store the total rewards for each simulation
 
     for simulation in range(num_simulations):
+        if simulation == num_simulations / 2:
+            plot_rewards(rewards_per_simulation)
+
         print(f"Starting simulation {simulation + 1}/{num_simulations}")
 
         state = game_env.reset()
@@ -373,15 +366,14 @@ def run_simulations(num_simulations=100, visual_mode=False, save_path="enemy_ai.
             simulation_time += 1  # Increment simulated time
 
             # Player action
-            game_env.player.avoid_enemies(game_env.enemies, width, height) or "STAY"
+            # game_env.player.avoid_enemies(game_env.enemies, width, height) or "STAY"
 
             # Environment step
-            next_state, rewards, done = game_env.step()
+            next_state, rewards, actions, done = game_env.step()
 
             total_rewards += sum(rewards)  # Accumulate rewards for this step
 
             # Enemy actions
-            actions = [enemy_agent.act(state) for _ in game_env.enemies]
             for enemy, action in zip(game_env.enemies, actions):
                 dx, dy = game_env.action_to_movement(action, enemy)
                 enemy.x += dx
@@ -413,31 +405,12 @@ def run_simulations(num_simulations=100, visual_mode=False, save_path="enemy_ai.
     return rewards_per_simulation
 
 
-def profile_run_simulations(*args, **kwargs):
-    profiler = cProfile.Profile()
-    profiler.enable()  # Start profiling
-    result = run_simulations(*args, **kwargs)
-    profiler.disable()  # Stop profiling
-
-    # Print or save the profiling results
-    s = StringIO()
-    stats = pstats.Stats(profiler, stream=s)
-    stats.sort_stats('cumtime')  # Sort by cumulative time
-    stats.print_stats()  # Print the profiling results to the console
-    print(s.getvalue())  # Output the profiling results
-
-    return result
-
-
 if __name__ == "__main__":
 
-    # rewards = run_simulations(num_simulations=250, visual_mode=False, save_path="trained_enemy_ai_250sims.pkl")
-    # profile_run_simulations(num_simulations=100, visual_mode=False, save_path="enemy_ai.pkl")
-
-    # plot_rewards(rewards)
+    rewards = run_simulations(num_simulations=500, visual_mode=False, save_path="trained_enemy_ai_500sims.pkl")
+    plot_rewards(rewards)
 
     # Run code below to see result of the simulations:
-
-    test_enemy_behavior("enemy_ai.pkl")
+    test_enemy_behavior("trained_enemy_ai_500sims.pkl")
 
 

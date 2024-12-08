@@ -69,6 +69,48 @@ class Player:
         self.x = max(0, min(width - self.size, self.x))
         self.y = max(0, min(height - self.size, self.y))
 
+    def avoid_enemies2(self, enemies, width, height):
+        """AI function to move the player smoothly away from enemies while seeking open spaces."""
+        safe_distance = 175  # Distance at which enemies start to repel the player
+        move_x, move_y = 0, 0
+
+        # Calculate repulsive forces from enemies
+        for enemy, information in enemies.items():
+            distance_x = self.x - information["x"]
+            distance_y = self.y - information["y"]
+            distance = (distance_x ** 2 + distance_y ** 2) ** 0.5
+
+            if distance < safe_distance:
+                repulsion_strength = safe_distance / (distance ** 2)
+                move_x += distance_x * repulsion_strength
+                move_y += distance_y * repulsion_strength
+
+        # Calculate attractive force towards the center of open space
+        center_x, center_y = width / 2, height / 2
+        attract_x = (center_x - self.x) * 0.01  # Small factor for smooth attraction
+        attract_y = (center_y - self.y) * 0.01  # Small factor for smooth attraction
+
+        # Combine forces
+        move_x += attract_x
+        move_y += attract_y
+
+        norm = (move_x ** 2 + move_y ** 2) ** 0.5
+        if norm != 0:
+            move_x = (move_x / norm) * self.speed
+            move_y = (move_y / norm) * self.speed
+
+        # Smooth movement
+        smoothing_factor = 0.3
+        self.move_x = (1 - smoothing_factor) * self.move_x + smoothing_factor * move_x
+        self.move_y = (1 - smoothing_factor) * self.move_y + smoothing_factor * move_y
+
+        self.x += self.move_x
+        self.y += self.move_y
+
+        # Constrain movement within screen boundaries
+        self.x = max(0, min(width - self.size, self.x))
+        self.y = max(0, min(height - self.size, self.y))
+
     def shoot(self, keys, bullet_speed, bullet_cooldown, current_time, last_bullet_time):
         if current_time - last_bullet_time >= bullet_cooldown:
             bullet_width = self.bullet_size
@@ -104,10 +146,6 @@ class Enemy:
         self.color = color
         self.speed = speed
         self.velocity = pygame.Vector2(random.uniform(-1, 1), random.uniform(-1, 1))
-        self.angle_to_player = 0  # Angle from the enemy to the player (in degrees)
-
-    def __repr__(self):
-        return f"Enemy(x={self.x}, y={self.y}, velocity={self.velocity}, angle={self.angle_to_player}))"
 
     def update(self, new_x, new_y):
         # Update the stored position based on the model's decision
