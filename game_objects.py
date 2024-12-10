@@ -3,7 +3,7 @@ import random
 
 
 class Player:
-    def __init__(self, x, y, size, color, speed, health, width, height, bullet_size):
+    def __init__(self, x, y, size, color, speed, health, width, height, bullet_size, image_path):
         self.x = x
         self.y = y
         self.size = size
@@ -16,8 +16,13 @@ class Player:
         self.bullet_size = bullet_size
         self.move_x = 0
         self.move_y = 0
+        self.image = pygame.image.load(image_path)
+        self.image = pygame.transform.scale(self.image, (self.size, self.size))
+        self.original_image = self.image  # Keep a reference to the original image
+        self.angle = 0
 
     def move(self, keys, width, height):
+        prev_x, prev_y = self.x, self.y
         if keys[pygame.K_w] and self.y - self.speed > 0:
             self.y -= self.speed
         if keys[pygame.K_s] and self.y + self.speed + self.size < height:
@@ -26,6 +31,13 @@ class Player:
             self.x -= self.speed
         if keys[pygame.K_d] and self.x + self.speed + self.size < width:
             self.x += self.speed
+
+        # Calculate the angle of movement
+        dx = self.x - prev_x
+        dy = self.y - prev_y
+        if dx != 0 or dy != 0:
+            self.angle = (180 / 3.14159) * -pygame.math.Vector2(dx, dy).angle_to((1, 0))
+            self.image = pygame.transform.rotate(self.original_image, self.angle)
 
     def avoid_enemies(self, enemies, width, height):
         """AI function to move the player smoothly away from enemies while seeking open spaces."""
@@ -135,17 +147,22 @@ class Player:
         return last_bullet_time
 
     def draw(self, screen):
-        pygame.draw.rect(screen, self.color, (self.x, self.y, self.size, self.size))
+        rotated_rect = self.image.get_rect(center=(self.x + self.size // 2, self.y + self.size // 2))
+        screen.blit(self.image, rotated_rect.topleft)
 
 
 class Enemy:
-    def __init__(self, x, y, size, color, speed):
+    def __init__(self, x, y, size, color, speed, image_path):
         self.x = x
         self.y = y
         self.size = size
         self.color = color
         self.speed = speed
         self.velocity = pygame.Vector2(random.uniform(-1, 1), random.uniform(-1, 1))
+        self.image = pygame.image.load(image_path)
+        self.image = pygame.transform.scale(self.image, (self.size, self.size))
+        self.original_image = self.image  # Keep a reference to the original image
+        self.angle = 0
 
     def update(self, new_x, new_y):
         # Update the stored position based on the model's decision
@@ -195,5 +212,17 @@ class Enemy:
         self.x += self.velocity.x
         self.y += self.velocity.y
 
+        direction_vector = pygame.Vector2(player_x - self.x, player_y - self.y)
+
+        # Normalize direction and move the enemy
+        if direction_vector.length() > 0:
+            direction_vector = direction_vector.normalize() * self.speed
+            self.x += direction_vector.x
+            self.y += direction_vector.y
+
+        self.angle = (180 / 3.14159) * -direction_vector.angle_to((1, 0))
+        self.image = pygame.transform.rotate(self.original_image, self.angle)
+
     def draw(self, screen):
-        pygame.draw.rect(screen, self.color, (self.x, self.y, self.size, self.size))
+        rotated_rect = self.image.get_rect(center=(self.x + self.size // 2, self.y + self.size // 2))
+        screen.blit(self.image, rotated_rect.topleft)
