@@ -95,6 +95,7 @@ def spawn_enemy():
 
     x, y = 0, 0
 
+    # Spawn enemy at selected edge
     if edge == 'top':
         x = random.randint(0, WIDTH - enemy_size)
         y = 0
@@ -194,9 +195,9 @@ def apply_upgrade(option):
     upgrade_menu_open = False
 
 
-# Modify the update_game_objects function to use this new AI function
 def update_game_objects():
     """Function to update all game objects."""
+
     global last_bullet_time, last_spawn_time
 
     keys = pygame.key.get_pressed()
@@ -204,6 +205,7 @@ def update_game_objects():
 
     current_time = pygame.time.get_ticks()
 
+    # RUN THIS CODE BELOW TO IMPLEMENT PLAYER AI INTO GAME:
     # player.avoid_enemies(enemies, WIDTH, HEIGHT)
 
     last_bullet_time = player.shoot(keys, bullet_speed, bullet_cooldown, current_time, last_bullet_time)
@@ -226,34 +228,35 @@ def update_game_objects():
         single_enemy.move_towards_player(player.x, player.y, enemies)
 
 
-def show_start_screen(screen, title_font, button_font, player, enemies):
+def show_start_screen(screen1, title_font1, button_font1, player1, enemies1):
     """Display the start screen with the game as the background."""
+
     while True:
         # Render the game as the background
-        screen.fill((230, 230, 230))  # Background color
+        screen1.fill((230, 230, 230))
 
         # Draw the player
-        player.draw(screen)
+        player1.draw(screen1)
 
         # Draw a couple of enemies
-        for enemy in enemies:
-            enemy.draw(screen)
+        for selected_enemy in enemies1:
+            selected_enemy.draw(screen1)
 
         # Draw the title
-        title_text = title_font.render("Purrsuit", True, (255, 100, 100))  # Bigger font and custom color
+        title_text = title_font1.render("Purrsuit", True, (255, 100, 100))
         title_rect = title_text.get_rect(center=(WIDTH // 2, HEIGHT // 4))
-        screen.blit(title_text, title_rect)
+        screen1.blit(title_text, title_rect)
 
         # Draw the Start Game button
         button_width, button_height = 200, 60
         button_x = (WIDTH - button_width) // 2
-        button_y = HEIGHT // 1.5  # Lowered position
+        button_y = HEIGHT // 1.5
         button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
 
-        pygame.draw.rect(screen, (100, 100, 200), button_rect)
-        button_text = button_font.render("Start Game", True, (255, 255, 255))
+        pygame.draw.rect(screen1, (100, 100, 200), button_rect)
+        button_text = button_font1.render("Start Game", True, (255, 255, 255))
         button_text_rect = button_text.get_rect(center=button_rect.center)
-        screen.blit(button_text, button_text_rect)
+        screen1.blit(button_text, button_text_rect)
 
         # Display the screen
         pygame.display.flip()
@@ -265,16 +268,17 @@ def show_start_screen(screen, title_font, button_font, player, enemies):
                 sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if button_rect.collidepoint(event.pos):
-                    return  # Exit the start screen loop
+                    return  #
 
 
-def show_game_over_screen(screen, title_font, button_font):
+def show_game_over_screen(screen1, title_font1, button_font1):
     """Display the game over screen without changing the game state."""
+
     while True:
         # Draw Game Over Title
-        title_text = title_font.render("Game Over", True, (255, 0, 0))  # Red title
+        title_text = title_font1.render("Game Over", True, (255, 0, 0))  # Red title
         title_rect = title_text.get_rect(center=(WIDTH // 2, HEIGHT // 3))
-        screen.blit(title_text, title_rect)
+        screen1.blit(title_text, title_rect)
 
         # Draw Restart Button
         button_width, button_height = 200, 60
@@ -282,18 +286,18 @@ def show_game_over_screen(screen, title_font, button_font):
         button_y = HEIGHT // 2
         restart_button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
 
-        pygame.draw.rect(screen, (0, 200, 0), restart_button_rect)
-        restart_text = button_font.render("Restart", True, (255, 255, 255))
+        pygame.draw.rect(screen1, (0, 200, 0), restart_button_rect)
+        restart_text = button_font1.render("Restart", True, (255, 255, 255))
         restart_text_rect = restart_text.get_rect(center=restart_button_rect.center)
-        screen.blit(restart_text, restart_text_rect)
+        screen1.blit(restart_text, restart_text_rect)
 
         # Draw Quit Button
         quit_button_rect = pygame.Rect(button_x, button_y + 80, button_width, button_height)
 
-        pygame.draw.rect(screen, (200, 0, 0), quit_button_rect)
-        quit_text = button_font.render("Quit", True, (255, 255, 255))
+        pygame.draw.rect(screen1, (200, 0, 0), quit_button_rect)
+        quit_text = button_font1.render("Quit", True, (255, 255, 255))
         quit_text_rect = quit_text.get_rect(center=quit_button_rect.center)
-        screen.blit(quit_text, quit_text_rect)
+        screen1.blit(quit_text, quit_text_rect)
 
         # Update display
         pygame.display.flip()
@@ -318,7 +322,7 @@ WIDTH, HEIGHT = info.current_w, info.current_h
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.NOFRAME)
 
 # Pygame Name
-pygame.display.set_caption("Squares")
+pygame.display.set_caption("Purrsuit")
 
 # Colors
 WHITE = (255, 255, 255)
@@ -372,6 +376,7 @@ score = 0
 upgrade_menu_open = False
 selected_upgrades = []
 
+# Enemies placed for starting screen
 start_screen_enemies = [
     Enemy(WIDTH // 3, HEIGHT // 3, 30, (0, 255, 0), 2, image_path='enemy_image.png'),
     Enemy(2 * WIDTH // 3, 2 * HEIGHT // 3, 30, (0, 0, 255), 2, image_path='enemy_image.png'),
@@ -379,8 +384,8 @@ start_screen_enemies = [
     Enemy(WIDTH // 1.7, HEIGHT // 2.8, 30, (0, 0, 255), 2, image_path='enemy_image.png')
 ]
 
-title_font = pygame.font.Font(pygame.font.get_default_font(), 72)  # Bigger font for the title
-button_font = pygame.font.Font(pygame.font.get_default_font(), 36)  # Smaller font for the button
+title_font = pygame.font.Font(pygame.font.get_default_font(), 72)
+button_font = pygame.font.Font(pygame.font.get_default_font(), 36)
 
 # Show the start screen
 show_start_screen(screen, title_font, button_font, player, start_screen_enemies)
@@ -394,7 +399,7 @@ while running:
 
     # Update game objects and check collisions
     update_game_objects()
-    if not check_collisions():  # If player health is zero
+    if not check_collisions():
         # Draw all game objects in their current state
         player.draw(screen)
         for enemy in enemies:
@@ -405,7 +410,6 @@ while running:
         # Show game over screen
         game_over_action = show_game_over_screen(screen, title_font, button_font)
         if game_over_action == "restart":
-            # Reset game variables for restart
             player.health = 1
             player.x, player.y = WIDTH // 2, HEIGHT // 2
             enemies.clear()
@@ -417,7 +421,6 @@ while running:
             running = False
 
     else:
-        # Normal game updates
         player.draw(screen)
 
         for bullet in player.bullets:
@@ -430,4 +433,3 @@ while running:
 
     pygame.display.flip()
     clock.tick(60)
-

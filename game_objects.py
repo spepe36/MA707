@@ -3,7 +3,10 @@ import random
 
 
 class Player:
+    """Player class to help store player information"""
+
     def __init__(self, x, y, size, color, speed, health, width, height, bullet_size, image_path):
+        """Initializes player information"""
         self.x = x
         self.y = y
         self.size = size
@@ -18,10 +21,12 @@ class Player:
         self.move_y = 0
         self.image = pygame.image.load(image_path)
         self.image = pygame.transform.scale(self.image, (self.size, self.size))
-        self.original_image = self.image  # Keep a reference to the original image
+        self.original_image = self.image
         self.angle = 0
 
     def move(self, keys, width, height):
+        """Function to control keyboard inputs"""
+
         prev_x, prev_y = self.x, self.y
         if keys[pygame.K_w] and self.y - self.speed > 0:
             self.y -= self.speed
@@ -41,6 +46,7 @@ class Player:
 
     def avoid_enemies(self, enemies, width, height):
         """AI function to move the player smoothly away from enemies while seeking open spaces."""
+
         safe_distance = 175  # Distance at which enemies start to repel the player
         move_x, move_y = 0, 0
 
@@ -82,7 +88,8 @@ class Player:
         self.y = max(0, min(height - self.size, self.y))
 
     def avoid_enemies2(self, enemies, width, height):
-        """AI function to move the player smoothly away from enemies while seeking open spaces."""
+        """AI function to move the player smoothly away from enemies while seeking open spaces. Used during training."""
+
         safe_distance = 175  # Distance at which enemies start to repel the player
         move_x, move_y = 0, 0
 
@@ -123,7 +130,52 @@ class Player:
         self.x = max(0, min(width - self.size, self.x))
         self.y = max(0, min(height - self.size, self.y))
 
+    def avoid_enemies_single_ppo(self, enemies, width, height):
+        """AI function to move the player smoothly away from enemies while seeking open spaces."""
+
+        safe_distance = 175  # Distance at which enemies start to repel the player
+        move_x, move_y = 0, 0
+
+        # Calculate repulsive forces from enemies
+        for enemy in enemies:
+            distance_x = self.x - enemy['x']
+            distance_y = self.y - enemy['y']
+            distance = (distance_x ** 2 + distance_y ** 2) ** 0.5
+
+            if distance < safe_distance:
+                repulsion_strength = safe_distance / (distance ** 2)
+                move_x += distance_x * repulsion_strength
+                move_y += distance_y * repulsion_strength
+
+        # Calculate attractive force towards the center of open space
+        center_x, center_y = width / 2, height / 2
+        attract_x = (center_x - self.x) * 0.01  # Small factor for smooth attraction
+        attract_y = (center_y - self.y) * 0.01  # Small factor for smooth attraction
+
+        # Combine forces
+        move_x += attract_x
+        move_y += attract_y
+
+        norm = (move_x ** 2 + move_y ** 2) ** 0.5
+        if norm != 0:
+            move_x = (move_x / norm) * self.speed
+            move_y = (move_y / norm) * self.speed
+
+        # Smooth movement
+        smoothing_factor = 0.3
+        self.move_x = (1 - smoothing_factor) * self.move_x + smoothing_factor * move_x
+        self.move_y = (1 - smoothing_factor) * self.move_y + smoothing_factor * move_y
+
+        self.x += self.move_x
+        self.y += self.move_y
+
+        # Constrain movement within screen boundaries
+        self.x = max(0, min(width - self.size, self.x))
+        self.y = max(0, min(height - self.size, self.y))
+
     def shoot(self, keys, bullet_speed, bullet_cooldown, current_time, last_bullet_time):
+        """Function to process bullet information."""
+
         if current_time - last_bullet_time >= bullet_cooldown:
             bullet_width = self.bullet_size
 
@@ -147,12 +199,17 @@ class Player:
         return last_bullet_time
 
     def draw(self, screen):
+        """Draw the player to the screen."""
+
         rotated_rect = self.image.get_rect(center=(self.x + self.size // 2, self.y + self.size // 2))
         screen.blit(self.image, rotated_rect.topleft)
 
 
 class Enemy:
+    """Enemy class to help store enemy information"""
+
     def __init__(self, x, y, size, color, speed, image_path):
+        """Initializes enemy information"""
         self.x = x
         self.y = y
         self.size = size
@@ -161,16 +218,18 @@ class Enemy:
         self.velocity = pygame.Vector2(random.uniform(-1, 1), random.uniform(-1, 1))
         self.image = pygame.image.load(image_path)
         self.image = pygame.transform.scale(self.image, (self.size, self.size))
-        self.original_image = self.image  # Keep a reference to the original image
+        self.original_image = self.image
         self.angle = 0
 
     def update(self, new_x, new_y):
-        # Update the stored position based on the model's decision
+        """Update the stored position based on the model's decision"""
+
         self.x = new_x
         self.y = new_y
 
     def move_towards_player(self, player_x, player_y, enemies, separation_distance=100, cohesion_factor=0.005,
                             alignment_factor=0.05, target_factor=0.1):
+        """Basic enemyAI that will follow the player"""
 
         separation = pygame.Vector2(0, 0)
         count = 0
@@ -224,5 +283,6 @@ class Enemy:
         self.image = pygame.transform.rotate(self.original_image, self.angle)
 
     def draw(self, screen):
+        """Draw the enemy to the screen."""
         rotated_rect = self.image.get_rect(center=(self.x + self.size // 2, self.y + self.size // 2))
         screen.blit(self.image, rotated_rect.topleft)
