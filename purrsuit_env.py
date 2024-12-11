@@ -1,5 +1,6 @@
 import functools
 import pygame
+import sys
 from gymnasium.spaces import Discrete, Dict, Box
 import numpy as np
 from pettingzoo import ParallelEnv
@@ -8,24 +9,20 @@ import random
 
 MAX_STEPS = 5000
 ACTION_MAP = {
-        0: (0, -2.6),  # Up
-        1: (0, 2.6),  # Down
-        2: (-2.6, 0),  # Left
-        3: (2.6, 0),  # Right
-        4: (0, 0)  # Stay
-    }
-
+    0: (0, -2.6),  # Up
+    1: (0, 2.6),   # Down
+    2: (-2.6, 0),  # Left
+    3: (2.6, 0),   # Right
+    4: (0, 0)       # Stay
+}
 
 def calculate_distance(x1, y1, x2, y2):
     return np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
-
-class NeuralDash(ParallelEnv):
+class NeuralDashAi(ParallelEnv):
     metadata = {"render_modes": ["human"], "name": "rps_v2"}
 
-    def __init__(self, env_width=700, env_height=700, number_of_enemies=2, render_mode=None):
-
-        # Game Information
+    def __init__(self, player_speed=4, env_width=700, env_height=700, number_of_enemies=2, render_mode=None):
         self.state = None
         self.total_enemies = number_of_enemies
         self.width = env_width
@@ -35,29 +32,35 @@ class NeuralDash(ParallelEnv):
         self.last_actions = {}
         self.consecutive_close_steps = {}
 
-        # Player and Enemy Initialization
-        self.player = Player(env_width // 2, env_height // 2, 30, (255, 0, 0), 4, 1, env_width, env_height, 5, 'player_image.png')
-        self._initialize_enemies()
+        self.player = Player(env_width // 2, env_height // 2, 30, (255, 0, 0), player_speed, 1, env_width, env_height, 5, 'player_image.png')
 
-        # optional: a mapping between agent name and ID
-        self.agent_name_mapping = dict(
-            zip(self.possible_agents, list(range(len(self.possible_agents))))
-        )
         self.render_mode = render_mode
+        pygame.init()  # Ensure pygame is initialized before font or display usage
+
+        # Initialize scoring
+        self.start_time = pygame.time.get_ticks()
+        self.score = 0
+        self.font = pygame.font.SysFont(None, 30)  # font for score and other texts
+
         if self.render_mode == "human":
-            pygame.init()
             self.screen = pygame.display.set_mode((self.width, self.height))
+            self.image = pygame.image.load("enemy_image.png").convert_alpha()
         else:
             self.screen = None
+            self.image = pygame.image.load("enemy_image.png").convert_alpha()
+
+        self._initialize_enemies()
+
+        # Fonts for start and end screens
+        self.title_font = pygame.font.SysFont(None, 72)
+        self.button_font = pygame.font.SysFont(None, 36)
 
     def _initialize_enemies(self):
-        self.agent_data = {}  # Initialize as a dictionary to store enemy data
-
+        self.agent_data = {}
         for name in self.possible_agents:
             enemy_size = 30
             edge = random.choice(['top', 'bottom', 'left', 'right'])
 
-            # Determine spawn position based on the edge
             if edge == 'top':
                 x = random.randint(0, self.width - enemy_size)
                 y = 0
@@ -71,33 +74,30 @@ class NeuralDash(ParallelEnv):
                 x = self.width - enemy_size
                 y = random.randint(0, self.height - enemy_size)
 
-            # Add the enemy's data to the dictionary
+            original_image = pygame.transform.scale(self.image, (enemy_size, enemy_size))
+            # Store both original and current image for rotation
             self.agent_data[name] = {
                 "x": float(x),
                 "y": float(y),
                 "size": enemy_size,
-                "color": "yellow"
+                "original_image": original_image,
+                "image": original_image
             }
 
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
-        # The maximum and minimum positions in the environment
         max_position = np.array([self.width, self.height])
         min_position = -max_position
 
-        # Observation space for relative position to the player (2 values: x, y)
         relative_player_low = -max_position
         relative_player_high = max_position
 
-        # Observation space for relative positions to other agents (N agents x 2 values each)
-        relative_agents_low = np.tile(min_position, (self.total_enemies - 1, 1))  # Exclude self
+        relative_agents_low = np.tile(min_position, (self.total_enemies - 1, 1))
         relative_agents_high = np.tile(max_position, (self.total_enemies - 1, 1))
 
-        # Observation space for distances (1 scalar value for player, N-1 scalars for other agents)
-        distance_low = np.array([0])  # Minimum distance is 0
-        distance_high = np.array([np.linalg.norm(max_position)])  # Max possible distance
+        distance_low = np.array([0])
+        distance_high = np.array([np.linalg.norm(max_position)])
 
-        # Combine everything into a single observation space
         return Dict({
             "relative_player_position": Box(
                 low=relative_player_low, high=relative_player_high, shape=(2,), dtype=np.float32
@@ -119,22 +119,108 @@ class NeuralDash(ParallelEnv):
     def action_space(self, agent):
         return Discrete(5)
 
+    def show_start_screen(self):
+        """Display a start screen and wait for the player to start."""
+        if self.screen is None:
+            return
+
+        waiting = True
+        while waiting:
+            self.screen.fill((230, 230, 230))
+
+            # Title
+            title_text = self.title_font.render("Purrsuit", True, (255, 100, 100))
+            title_rect = title_text.get_rect(center=(self.width // 2, self.height // 4))
+            self.screen.blit(title_text, title_rect)
+
+            # Start button
+            button_width, button_height = 200, 60
+            button_x = (self.width - button_width) // 2
+            button_y = self.height // 1.5
+            button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
+            pygame.draw.rect(self.screen, (100, 100, 200), button_rect)
+
+            button_text = self.button_font.render("Start Game", True, (255, 255, 255))
+            button_text_rect = button_text.get_rect(center=button_rect.center)
+            self.screen.blit(button_text, button_text_rect)
+
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if button_rect.collidepoint(event.pos):
+                        waiting = False
+                elif event.type == pygame.KEYDOWN:
+                    # Pressing any key also starts the game
+                    waiting = False
+
+    def show_game_over_screen(self):
+        """Display a game over screen and wait for restart or quit."""
+        if self.screen is None:
+            return "quit"
+
+        while True:
+            self.screen.fill((230, 230, 230))
+
+            # Game Over text
+            title_text = self.title_font.render("Game Over", True, (255, 0, 0))
+            title_rect = title_text.get_rect(center=(self.width // 2, self.height // 3))
+            self.screen.blit(title_text, title_rect)
+
+            # Restart button
+            button_width, button_height = 200, 60
+            button_x = (self.width - button_width) // 2
+            button_y = self.height // 2
+            restart_button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
+            pygame.draw.rect(self.screen, (0, 200, 0), restart_button_rect)
+            restart_text = self.button_font.render("Restart", True, (255, 255, 255))
+            restart_text_rect = restart_text.get_rect(center=restart_button_rect.center)
+            self.screen.blit(restart_text, restart_text_rect)
+
+            # Quit button
+            quit_button_rect = pygame.Rect(button_x, button_y + 80, button_width, button_height)
+            pygame.draw.rect(self.screen, (200, 0, 0), quit_button_rect)
+            quit_text = self.button_font.render("Quit", True, (255, 255, 255))
+            quit_text_rect = quit_text.get_rect(center=quit_button_rect.center)
+            self.screen.blit(quit_text, quit_text_rect)
+
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if restart_button_rect.collidepoint(event.pos):
+                        return "restart"
+                    elif quit_button_rect.collidepoint(event.pos):
+                        pygame.quit()
+                        sys.exit()
+
     def render(self):
         if self.screen is None:
             return
-        self.screen.fill((0, 0, 0))
-        # self.player.draw(self.screen)
-        # self.screen.blit(self.player.image)
 
+        self.screen.fill((255, 255, 255))
+
+        # Update score
+        elapsed_ms = pygame.time.get_ticks() - self.start_time
+        self.score = elapsed_ms // 1000
+
+        # Draw player
         rotated_rect = self.player.image.get_rect(center=(self.player.x + self.player.size // 2, self.player.y + self.player.size // 2))
         self.screen.blit(self.player.image, rotated_rect.topleft)
 
+        # Draw enemies
         for agent_id, agent_data in self.agent_data.items():
-            pygame.draw.rect(
-                self.screen,
-                pygame.Color(agent_data["color"]),
-                (agent_data["x"], agent_data["y"], agent_data["size"], agent_data["size"])
-            )
+            self.screen.blit(agent_data["image"], (agent_data["x"], agent_data["y"]))
+
+        # Score text
+        score_text = self.font.render(f"Score: {self.score}", True, (0, 0, 0))
+        self.screen.blit(score_text, (10, 10))
 
         pygame.display.flip()
 
@@ -142,34 +228,29 @@ class NeuralDash(ParallelEnv):
         if self.render_mode == "human":
             pygame.quit()
 
-        pass
-
     def reset(self, seed=7, options=None):
-        # Set the random seed for reproducibility if provided
+        # Show start screen before resetting if desired
+        if self.render_mode == "human":
+            self.show_start_screen()
+
         if seed is not None:
             np.random.seed(seed)
 
-        # Reset player and environment state
         self.player.x = self.width // 2
         self.player.y = self.height // 2
         self._initialize_enemies()
 
-        # Reset the list of active agents to the starting agents
         self.agents = self.possible_agents[:]
-
-        # Reset counters and other state-tracking variables
         self.frames = 0
+        self.start_time = pygame.time.get_ticks()
+        self.score = 0
 
-        # Initialize observations and infos for all agents
         observations = {
             agent: {
-                # Relative position to the player
                 "relative_player_position": np.array([
                     self.player.x - self.agent_data[agent]["x"],
                     self.player.y - self.agent_data[agent]["y"]
                 ], dtype=np.float32),
-
-                # Relative positions to other agents (excluding itself)
                 "relative_agents_positions": np.array([
                     [
                         self.agent_data[other_agent]["x"] - self.agent_data[agent]["x"],
@@ -177,16 +258,12 @@ class NeuralDash(ParallelEnv):
                     ]
                     for other_agent in self.agents if other_agent != agent
                 ], dtype=np.float32),
-
-                # Distance to the player
                 "distance_to_player": np.array([
                     np.linalg.norm([
                         self.player.x - self.agent_data[agent]["x"],
                         self.player.y - self.agent_data[agent]["y"]
                     ])
                 ], dtype=np.float32),
-
-                # Distances to other agents (excluding itself)
                 "distances_to_agents": np.array([
                     np.linalg.norm([
                         self.agent_data[other_agent]["x"] - self.agent_data[agent]["x"],
@@ -198,34 +275,31 @@ class NeuralDash(ParallelEnv):
             for agent in self.agents
         }
 
-        infos = {agent: {} for agent in self.agents}
-
-        # Update the environment state
         self.state = observations
 
-        # Handle rendering if the environment is set to human mode
         if self.render_mode == "human" and self.screen is not None:
             self.render()
 
         return observations
 
-    def step(self, actions):
-
+    def step(self, actions, player_ai=True):
         if not actions:
             self.agents = []
             return {}, {}, {}, {}, {}
 
         terminate = False
+        pygame.event.pump()
 
-        # Move player as before
-        self.player.avoid_enemies2(self.agent_data, self.width, self.height)
+        if player_ai:
+            self.player.avoid_enemies2(self.agent_data, self.width, self.height)
+        else:
+            keys = pygame.key.get_pressed()
+            self.player.move(keys, self.width, self.height)
 
         prev_dist = []
         curr_dist = []
-
         self.agent_prev_data = self.agent_data
 
-        # Calculate distances before and after move
         for agent, information in self.agent_data.items():
             prev_distance = calculate_distance(information['x'], information['y'], self.player.x, self.player.y)
             prev_dist.append(prev_distance)
@@ -236,44 +310,34 @@ class NeuralDash(ParallelEnv):
             curr_distance = calculate_distance(information['x'], information['y'], self.player.x, self.player.y)
             curr_dist.append(curr_distance)
 
-        rewards = {}
         collision_occurred = any(self._check_collision_with_player(agent) for agent in self.agents)
+        rewards = {}
 
         for i, agent in enumerate(self.agents):
-            reward = 0.0  # Initialize the reward
+            reward = 0.0
             distance_change = prev_dist[i] - curr_dist[i]
 
-            # Distance-Based Reward
             reward += distance_change * 0.6
             if distance_change > 0:
                 reward += 0.01
 
-            # Proximity Bonuses
             if curr_dist[i] < 100:
                 reward += 0.5
             if curr_dist[i] < 50:
                 reward += 2.0
             if curr_dist[i] < 30:
                 reward += 5.0
-
-                # Track consecutive steps close to player
-                # Initialize if not present
                 if agent not in self.consecutive_close_steps:
                     self.consecutive_close_steps[agent] = 0
                 self.consecutive_close_steps[agent] += 1
-
-                # Every 5 steps close, give a small bonus
                 if self.consecutive_close_steps[agent] % 5 == 0:
                     reward += 0.1
             else:
-                # Not within 30 units, reset count
                 self.consecutive_close_steps[agent] = 0
 
-            # Penalty for Collisions with Other Agents
             if self._check_collision_with_agents(agent):
                 reward -= 4.0
 
-            # Cooperation Reward
             for j, other_agent in enumerate(self.agents):
                 if i != j:
                     distance_to_other_agent = calculate_distance(
@@ -283,26 +347,21 @@ class NeuralDash(ParallelEnv):
                     if 20 < distance_to_other_agent < 40:
                         reward += 1.5
 
-            # Small Step Penalty
             reward -= 0.01
 
-            # Catch-the-Player Reward
             if collision_occurred:
                 reward += 10.0
                 terminate = True
 
-            # Last action penalty for jittering
             current_action = actions[agent]
             if agent in self.last_actions:
                 if self.last_actions[agent] != current_action:
                     reward -= 0.01
             self.last_actions[agent] = current_action
 
-            # Clip reward
             rewards[agent] = np.clip(reward, -20, 20)
 
         terminations = {agent: terminate for agent in self.agents}
-
         self.frames += 1
         env_truncation = self.frames >= MAX_STEPS
         truncations = {agent: env_truncation for agent in self.agents}
@@ -341,7 +400,17 @@ class NeuralDash(ParallelEnv):
         infos = {agent: {} for agent in self.agents}
 
         if env_truncation or terminate:
-            self.agents = []
+            # Show game over screen
+            if self.render_mode == "human":
+                action = self.show_game_over_screen()
+                if action == "restart":
+                    obs = self.reset()
+                    return obs, rewards, {agent: False for agent in self.agents}, {agent: False for agent in self.agents}, infos
+                else:
+                    self.agents = []
+                    return observations, rewards, terminations, truncations, infos
+            else:
+                self.agents = []
 
         if self.render_mode == "human":
             self.render()
@@ -350,11 +419,19 @@ class NeuralDash(ParallelEnv):
 
     def _move_agent(self, agent, action):
         movement = ACTION_MAP[action]
-
+        old_x, old_y = self.agent_data[agent]['x'], self.agent_data[agent]['y']
         self.agent_data[agent]['x'] = max(0, min(self.width - self.agent_data[agent]['size'],
                                                  self.agent_data[agent]['x'] + movement[0]))
         self.agent_data[agent]['y'] = max(0, min(self.height - self.agent_data[agent]['size'],
                                                  self.agent_data[agent]['y'] + movement[1]))
+
+        dx = self.agent_data[agent]['x'] - old_x
+        dy = self.agent_data[agent]['y'] - old_y
+        if dx != 0 or dy != 0:
+            movement_vec = pygame.math.Vector2(dx, dy)
+            # Assuming enemy sprite faces up initially, use (0, -1) as baseline
+            angle = movement_vec.angle_to(pygame.math.Vector2(0, -1))
+            self.agent_data[agent]['image'] = pygame.transform.rotate(self.agent_data[agent]['original_image'], angle)
 
     def _check_collision_with_agents(self, agent):
         agent_rect = pygame.Rect(
@@ -365,7 +442,7 @@ class NeuralDash(ParallelEnv):
         )
 
         for other_agent, other_data in self.agent_data.items():
-            if other_agent == agent:  # Skip checking collision with itself
+            if other_agent == agent:
                 continue
 
             other_agent_rect = pygame.Rect(
@@ -374,11 +451,9 @@ class NeuralDash(ParallelEnv):
                 other_data["size"],
                 other_data["size"]
             )
-
             if agent_rect.colliderect(other_agent_rect):
-                return True  # Collision detected
-
-        return False  # No collisions
+                return True
+        return False
 
     def _check_collision_with_player(self, agent):
         agent_rect = pygame.Rect(
@@ -401,5 +476,4 @@ class NeuralDash(ParallelEnv):
         x, y = self.agent_data[agent]["x"], self.agent_data[agent]["y"]
         test1 = self.width - x
         test2 = self.height - y
-
         return test1, test2

@@ -1,0 +1,25 @@
+enemy_image.png + player_image.png are the images used for the cat and mouse icons
+
+game_objects.py + main.py are the two python files required to run the final product of the game (WITH NO AI).
+
+purrsuit_env.py + main_ai.py are the two python files required to run the final product of the game (WITH AI).
+    Note: This final product only shows a smaller environment with 3 enemies, as our best working model required those parameters
+
+game_environment.py is a python file that contains our first attempted model (DQN). We found no results from this model and thus do not have any saved models in the models folder.
+
+multiAgentEnv.py + multiAgentPPO.py are the two files that contain the bulk of our work. multiAgentEnv.py contains the environment needed to train multiple agents, and multiAgentPPO.py is the file that
+used the environment to train the agents. In multiAgentPPO.py you'll be able to visualize any of our working 2agent models. These models can be found in the models folder and end in "2agents". Ensure that
+you use the corresponding policy file (files that start with p_) with the right critic file (files that start with c_). For instance visualize_ppo('p_1500_sims_2agents', 'c_1500_sims_2agents') will show our
+2 agent model trained with 1500 simulations.
+
+ppo_multiprocessing.py is the py file where we trained all our 3+ agent models. This is also where we utilized multiprocessing. Instead of running one environment training the model, we ran 8-10, each occupying
+a different thread on the cpu, in order to speed up simulations. You can visualize any of our working 3 or 4 agent models. These models can be found in the models folder and end in "3agents" or "4agents". Ensure that
+you use the corresponding policy file (files that start with p_) with the right critic file (files that start with c_) and the correct observation dimension. 3 agents has an observation dimension of 9, and 4 agents
+has an observation dimension of 12. For instance visualize_ppo_mp('p_8000_sims_3agents', 'c_8000_sims_3agents', 9) will show our 3 agent model trained with 1500 simulations.
+
+singleAgentPPO.py is the py file where we trained one agent in the environment. We have one successful model saved and already pre_inputted into the visualization function. Feel free to run singleAgentPPO.py to see
+what it looks like.
+
+requirements.txt contains all necessary libraries to run all files.
+
+gif_creation.py can be ignored. We simply used this file to create gifs for the presentation.

@@ -1,19 +1,19 @@
 import torch
-import torch.multiprocessing as mp
+from numpy import number
+
 from multiAgentEnv import NeuralDash
 from multiAgentPPO import save_model, update_policy, init_weights, AgentPolicy, ValueNetwork, \
     compute_discounted_rewards, compute_gae, flatten_agent_obs
 from multiprocessing import Pool
 import numpy as np
 import matplotlib.pyplot as plt
-from copy import deepcopy
 import time
 
 
 def collect_rollout(policy_state_dict, critic_state_dict, obs_dims, action_dims, rollout_steps, gamma, lam, render_mode):
     device = torch.device("cpu")
     # Create a separate environment in each worker
-    env = NeuralDash(render_mode=render_mode, number_of_enemies=3, env_width=900, env_height=900)
+    env = NeuralDash(render_mode=render_mode, number_of_enemies=4, env_width=900, env_height=900)
     env.reset()
 
     # Create local models
@@ -212,15 +212,20 @@ def train_ppo(
     print("Saved action distribution plot as action_distribution.png")
 
 
-def visualize_ppo(policy_model, critic_model):
+def visualize_ppo_mp(policy_model, critic_model, obs):
 
-    policy = AgentPolicy(9, 5)
-    critic = ValueNetwork(9)
+    policy = AgentPolicy(obs, 5)
+    critic = ValueNetwork(obs)
     policy.load_state_dict(torch.load(f"models/{policy_model}.pth"))
     critic.load_state_dict(torch.load(f"models/{critic_model}.pth"))
-    policy.eval()  # set to evaluation mode
+    policy.eval()
 
-    env = NeuralDash(render_mode='human', number_of_enemies=3)
+    if obs == 9:
+        enemies = 3
+    else:
+        enemies = 4
+
+    env = NeuralDash(number_of_enemies=enemies, render_mode='human')
     state = env.reset()
 
     done = {agent: False for agent in env.agents}
@@ -242,5 +247,7 @@ def visualize_ppo(policy_model, critic_model):
 
 
 if __name__ == "__main__":
-    train_ppo(num_episodes=300, rollout_steps=1500, gamma=0.99, lam=0.95, render_mode='False', policy_path='models/p_100_sims_3agents.pth', critic_path='models/c_100_sims_3agents.pth', num_envs=8, name="mp")
-    visualize_ppo('mppolicy_ep299', 'mpcritic_ep299')
+    train_ppo(num_episodes=500, rollout_steps=1500, gamma=0.99, lam=0.95, render_mode='False', num_envs=10, name="mp_4")
+    # visualize_ppo_mp('p_8000_sims_3agents', 'c_8000_sims_3agents', 9)
+
+

@@ -339,7 +339,9 @@ def visualize_ppo(policy_model, critic_model):
 
         next_state, reward, truncation, termination, info = env.step(actions)
         done = {agent: truncation[agent] or termination[agent] for agent in env.agents}
+
         env.render()
+
         time.sleep(.005)
         state = next_state
 
@@ -359,5 +361,5 @@ def save_model(policy, critic, name, directory="models", episode=None):
 
 
 if __name__ == "__main__":
-    train_ppo(num_episodes=1500, rollout_steps=1500, gamma=0.8, lam=0.95, name='nonmp', policy_path='models/nonmppolicy_ep1499', critic_path='models/c_1500_sims_2agents.pth')
-    # visualize_ppo('nonmppolicy_ep1499', 'nonmpcritic_ep1499')
+    # train_ppo(num_episodes=5000, rollout_steps=1500, gamma=0.8, lam=0.95, name='nonmp_5000', policy_path='models/p_12000_sims_2agent.pth', critic_path='models/c_12000_sims_2agent.pth')
+    visualize_ppo('p_1500_sims_2agents', 'c_1500_sims_2agents')

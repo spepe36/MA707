@@ -40,8 +40,14 @@ class Player:
         # Calculate the angle of movement
         dx = self.x - prev_x
         dy = self.y - prev_y
-        if dx != 0 or dy != 0:
-            self.angle = (180 / 3.14159) * -pygame.math.Vector2(dx, dy).angle_to((1, 0))
+        movement_vec = pygame.math.Vector2(dx, dy)
+
+        if movement_vec.length() > 0:
+            # Using (0, -1) as the reference direction (up)
+            # This ensures that moving up (W) results in zero rotation.
+            self.angle = movement_vec.angle_to(pygame.math.Vector2(0, -1))
+
+            # Rotate the image based on this new angle
             self.image = pygame.transform.rotate(self.original_image, self.angle)
 
     def avoid_enemies(self, enemies, width, height):
@@ -229,8 +235,7 @@ class Enemy:
 
     def move_towards_player(self, player_x, player_y, enemies, separation_distance=100, cohesion_factor=0.005,
                             alignment_factor=0.05, target_factor=0.1):
-        """Basic enemyAI that will follow the player"""
-
+        """Basic enemy AI that will follow the player and orient in the direction of movement."""
         separation = pygame.Vector2(0, 0)
         count = 0
         for other in enemies:
@@ -254,16 +259,18 @@ class Enemy:
         if count > 0:
             alignment = (alignment / count).normalize() * alignment_factor
 
-        cohesion_vector = pygame.Vector2(player_x - self.x, player_y - self.y).normalize()
+        cohesion_vector = pygame.Vector2(player_x - self.x, player_y - self.y)
         distance_to_player = cohesion_vector.length()
-
+        if distance_to_player > 0:
+            cohesion_vector = cohesion_vector.normalize()
+        # Adjust cohesion factor based on distance to player
         if distance_to_player < separation_distance:
             cohesion_factor *= (distance_to_player / separation_distance)
 
         cohesion = cohesion_vector * cohesion_factor
+        target_direction = cohesion_vector * target_factor
 
-        target_direction = pygame.Vector2(player_x - self.x, player_y - self.y).normalize() * target_factor
-
+        # Update velocity and position based on flocking behavior
         self.velocity += separation + alignment + cohesion + target_direction
         if self.velocity.length() > self.speed:
             self.velocity = self.velocity.normalize() * self.speed
@@ -271,16 +278,17 @@ class Enemy:
         self.x += self.velocity.x
         self.y += self.velocity.y
 
+        # Now move towards the player again as before
         direction_vector = pygame.Vector2(player_x - self.x, player_y - self.y)
 
-        # Normalize direction and move the enemy
+        # Normalize direction and move the enemy again
         if direction_vector.length() > 0:
             direction_vector = direction_vector.normalize() * self.speed
             self.x += direction_vector.x
             self.y += direction_vector.y
 
-        self.angle = (180 / 3.14159) * -direction_vector.angle_to((1, 0))
-        self.image = pygame.transform.rotate(self.original_image, self.angle)
+            self.angle = direction_vector.angle_to(pygame.math.Vector2(0, -1))
+            self.image = pygame.transform.rotate(self.original_image, self.angle)
 
     def draw(self, screen):
         """Draw the enemy to the screen."""

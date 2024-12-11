@@ -23,6 +23,9 @@ def check_collision(rect1, rect2):
     return pygame.Rect(rect1).colliderect(pygame.Rect(rect2))
 
 
+last_score_update = 0
+
+
 def check_collisions():
     """Function to check for collisions between bullets and enemies, and between the player and enemies."""
 
@@ -37,7 +40,8 @@ def check_collisions():
                 player.bullets.remove(single_bullet)
                 enemies.remove(single_enemy)
                 enemies_defeated += 1
-                score += 1
+                # Removed the line that increments the score when an enemy is defeated by a bullet
+                # score += 1  # <--- REMOVE THIS LINE
 
     # Player-Enemy collisions
     player_rect = (player.x, player.y, player.size, player.size)
@@ -55,7 +59,7 @@ def enemy_selected():
     """Function to choose the type of enemy to spawn based on the round's spawn rates."""
 
     spawn_rates = {1: {'yellow': 1},  # 100% of enemies will be yellow
-                   2: {'yellow': 7, 'green': 3},  # 70% of enemies will be yellow, 30% will be green
+                   2: {'yellow': 1},  # 100% of enemies will be yellow, 30% will be green
                    3: {'yellow': 5, 'green': 3, 'red': 2},
                    4: {'yellow': 2, 'green': 5, 'red': 3},
                    5: {'yellow': 1, 'green': 2, 'red': 3, 'purple': 4}}
@@ -198,16 +202,14 @@ def apply_upgrade(option):
 def update_game_objects():
     """Function to update all game objects."""
 
-    global last_bullet_time, last_spawn_time
+    global last_bullet_time, last_spawn_time, last_score_update, score, round_number, enemies_defeated, enemies_to_defeat, spawn_interval, max_enemies
 
     keys = pygame.key.get_pressed()
     player.move(keys, WIDTH, HEIGHT)
 
     current_time = pygame.time.get_ticks()
 
-    # RUN THIS CODE BELOW TO IMPLEMENT PLAYER AI INTO GAME:
-    # player.avoid_enemies(enemies, WIDTH, HEIGHT)
-
+    # Update bullet positions
     last_bullet_time = player.shoot(keys, bullet_speed, bullet_cooldown, current_time, last_bullet_time)
 
     for single_bullet in player.bullets[:]:
@@ -215,17 +217,42 @@ def update_game_objects():
         single_bullet[1] += single_bullet[3]
         distance_traveled = ((single_bullet[0] - single_bullet[4]) ** 2 + (single_bullet[1] - single_bullet[5]) ** 2) ** 0.5
 
-        if distance_traveled > bullet_range or single_bullet[0] < 0 or single_bullet[0] > WIDTH or single_bullet[1] < 0 or single_bullet[1] > HEIGHT:
+        if (distance_traveled > bullet_range or
+            single_bullet[0] < 0 or single_bullet[0] > WIDTH or
+            single_bullet[1] < 0 or single_bullet[1] > HEIGHT):
             player.bullets.remove(single_bullet)
 
+    # Spawn enemies
     if current_time - last_spawn_time > spawn_interval:
         new_enemy = spawn_enemy()
         if new_enemy is not None:
             enemies.append(new_enemy)
         last_spawn_time = current_time
 
+    # Move enemies
     for single_enemy in enemies:
         single_enemy.move_towards_player(player.x, player.y, enemies)
+
+    # Increment score every second
+    if current_time - last_score_update >= 1000:  # 1000 ms = 1 second
+        score += 1
+        last_score_update = current_time
+
+    # Check if we should advance to round 2
+    if score >= 30 and round_number == 1:
+        # Advance to round 2
+        round_number = 2
+        enemies_defeated = 0
+        enemies_to_defeat = round_number * 10
+        spawn_interval -= 100
+        max_enemies+=10
+
+        # Optional: Reset player position
+        player.x, player.y = WIDTH // 2, HEIGHT // 2
+
+        # Clear existing enemies and bullets to start fresh
+        enemies.clear()
+        player.bullets.clear()
 
 
 def show_start_screen(screen1, title_font1, button_font1, player1, enemies1):
@@ -357,7 +384,7 @@ enemies = []
 round_number = 1
 enemies_defeated = 0
 enemies_to_defeat = round_number * 10
-max_enemies = 35
+max_enemies = 20
 
 # Bullet variables
 bullet_speed = 7
